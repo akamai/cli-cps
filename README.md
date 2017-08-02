@@ -1,4 +1,4 @@
-# cli-cloudlet-visitor-prioritization
+# cli-cps
 Provides a way to interact with your Certificate Provisioning System via Open APIs and without manually having to go into the Luna Portal. Provides various functionality such as viewing current certificates, current status, certificate details, and the ability to update certificates and audit them.
 
 ## Local Install
