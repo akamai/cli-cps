@@ -171,7 +171,7 @@ if args.getCertificateStatus:
     if not args.cn:
         rootLogger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
-    hostname = args.cn
+    cn = args.cn
     enrollmentsPath = os.path.join('setup','enrollments')
     cpsObject = cps(access_hostname)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -182,9 +182,9 @@ if args.getCertificateStatus:
             #rootLogger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
             for everyEnrollmentInfo in enrollmentsJsonContent:
-                if everyEnrollmentInfo['cn'] == hostname or 'sans' in everyEnrollmentInfo and args.hostname in everyEnrollmentInfo['sans']:
+                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
                     enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    rootLogger.info('Fetching details of ' + args.hostname + ' with enrollmentId: ' + str(enrollmentId))
+                    rootLogger.info('Fetching details of ' + cn + ' with enrollmentId: ' + str(enrollmentId))
                     enrollmentDetails = cpsObject.getEnrollment(session, enrollmentId)
                     if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
