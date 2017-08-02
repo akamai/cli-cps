@@ -1,0 +1,12 @@
+{
+  "requirements": {
+    "python": "3.1.4"
+  },
+  "commands": [
+    {
+      "name": "cps",
+      "version": "0.0.1",
+      "description": "Akamai API kit to access Certificate Provisioning System"
+    }
+  ]
+}
