@@ -28,6 +28,8 @@ import os
 import logging
 import shutil
 from prettytable import PrettyTable
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 #Setup logging
 if not os.path.exists('logs'):
@@ -53,10 +55,10 @@ rootLogger.setLevel(logging.INFO)
 try:
     config = configparser.ConfigParser()
     config.read(os.path.join(os.path.expanduser("~"),'.edgerc'))
-    client_token = config['papi']['client_token']
-    client_secret = config['papi']['client_secret']
-    access_token = config['papi']['access_token']
-    access_hostname = config['papi']['host']
+    client_token = config['cps']['client_token']
+    client_secret = config['cps']['client_secret']
+    access_token = config['cps']['access_token']
+    access_hostname = config['cps']['host']
     session = requests.Session()
     session.auth = EdgeGridAuth(
                 client_token = client_token,
@@ -75,6 +77,7 @@ parser.add_argument("--getCertificateDetails",help="Get detailed information abo
 parser.add_argument("--getCertificateStatus",help="Get current status about specific certificate",action="store_true")
 parser.add_argument("--audit",help="Generate a complete audit report of all certificates",action="store_true")
 parser.add_argument("--cn",help="Hostname/CommonName/SAN of certificate of interest")
+parser.add_argument("--certDetails",help="Hostname/CommonName/SAN of certificate of interest")
 
 
 #Additional arguments
@@ -84,7 +87,7 @@ args = parser.parse_args()
 
 
 #Check for valid command line arguments
-if not args.setup and not args.getCertificateDetails and not args.cn and not args.audit and not args.debug:
+if not args.setup and not args.getCertificateDetails and not args.cn and not args.audit and not args.certDetails and not args.debug:
     rootLogger.info("Use -h for help options")
     exit(-1)
 
@@ -234,15 +237,24 @@ if args.audit:
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 enrollmentId = everyEnrollmentInfo['enrollmentId']
                 enrollmentDetails = cpsObject.getEnrollment(session, enrollmentId)
-                if enrollmentDetails.status_code == 200:
+                certResponse = cpsObject.getCertificate(session, enrollmentId)
+
+                if enrollmentDetails.status_code == 200 and certResponse.status_code == 200:
                     enrollmentDetailsJson = enrollmentDetails.json()
+                    #print(json.dumps(enrollmentDetails.json(),indent=4))
+                    cert = x509.load_pem_x509_certificate(certResponse.json()['certificate'].encode(), default_backend())
+                    Status = 'UNKNOWN'
+                    if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
+                        Status = 'ACTIVE'
+                    elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
+                        Status = 'PENDING'
                     with open(os.path.join('output','CPSAudit.csv'),'a') as fileHandler:
-                        fileHandler.write(str(enrollmentId) + ', '+ enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + 'Status' + ', ' + 'Expiration' + ', ' + enrollmentDetailsJson['validationType'] \
+                        fileHandler.write(str(enrollmentId) + ', '+ enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType'] \
                         + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
                 else:
-                    rootLogger.info('Unable to fetch Enrollment details for enrollmentId: ' + str(enrollmentId))
-
-
+                    rootLogger.info('Unable to fetch Enrollment/Certificate details for enrollmentId: ' + str(enrollmentId))
+                    rootLogger.debug('Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
+                    rootLogger.debug('Reason: ' + json.dumps(certResponse.json(), indent=4))
 
 #Final or common Successful exit
 exit(0)
