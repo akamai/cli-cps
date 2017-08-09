@@ -83,13 +83,13 @@ parser.add_argument("--certDetails",help="Hostname/CommonName/SAN of certificate
 
 #Additional arguments
 #parser.add_argument("-verbose",help="Display detailed rule information for a specific version (only for -getDetail method with -version)", action="store_true")
+#parser.add_argument("--SANList",help="Hostname/CommonName/SAN of certificate of interest")
 parser.add_argument("--debug",help="Optional parameter for extra logging",action="store_true")
 parser.add_argument("--listEnrollments",help="List all enrollments",action="store_true")
-parser.add_argument("--general",help="Hostname/CommonName/SAN of certificate of interest",action="store_true")
-parser.add_argument("--certInfo",help="Hostname/CommonName/SAN of certificate of interest",action="store_true")
-#parser.add_argument("--SANList",help="Hostname/CommonName/SAN of certificate of interest")
-parser.add_argument("--companyInfo",help="Hostname/CommonName/SAN of certificate of interest",action="store_true")
-parser.add_argument("--contactInfo",help="DEBUG mode to generate additional logs for troubleshooting",action="store_true")
+parser.add_argument("--general",help="To be used with --getDetail to display general details",action="store_true")
+parser.add_argument("--certInfo",help="To be used with --getDetail to display Certificate information",action="store_true")
+parser.add_argument("--companyInfo",help="To be used with --getDetail to display details about company",action="store_true")
+parser.add_argument("--contactInfo",help="To be used with --getDetail to display contact details(Admin and Tech)",action="store_true")
 args = parser.parse_args()
 
 
