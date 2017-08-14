@@ -17,6 +17,24 @@ class cps(object):
     def __init__(self,access_hostname):
         self.access_hostname = access_hostname
 
+    def getContracts(self,session):
+        """
+        Function to fetch all contracts
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        contractsResponse : contractsResponse
+            (contractsResponse) Object with all details
+        """
+        contractsUrl = 'https://' + self.access_hostname + '/papi/v1/contracts/'
+        contractsResponse = session.get(contractsUrl)
+        return contractsResponse
+
     def createEnrollment(self,session,contractId,data):
         """
         Function to Create an Enrollment
