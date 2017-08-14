@@ -110,7 +110,7 @@ if not args.setup and not args.getDetail and not args.cn and not args.audit and 
 def printData(title, data):
     rootLogger.info('\n')
     title.append('Values')
-    table = PrettyTable(title)
+    table = PrettyTable(title,padding_width=3)
     table.align = "l"
     for eachItem in data.keys():
         value = []
