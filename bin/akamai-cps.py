@@ -31,13 +31,14 @@ from prettytable import PrettyTable
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-#Setup logging
+# Setup logging
 if not os.path.exists('logs'):
     os.makedirs('logs')
 logFile = os.path.join('logs', 'CPSConfigKit_log.log')
 
-#Set the format of logging in console and file seperately
-logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+# Set the format of logging in console and file seperately
+logFormatter = logging.Formatter(
+    "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 consoleFormatter = logging.Formatter("%(message)s")
 rootLogger = logging.getLogger()
 
@@ -49,49 +50,59 @@ rootLogger.addHandler(logfileHandler)
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(consoleFormatter)
 rootLogger.addHandler(consoleHandler)
-#Set Log Level to DEBUG, INFO, WARNING, ERROR, CRITICAL
+# Set Log Level to DEBUG, INFO, WARNING, ERROR, CRITICAL
 rootLogger.setLevel(logging.INFO)
 
 try:
     config = configparser.ConfigParser()
-    config.read(os.path.join(os.path.expanduser("~"),'.edgerc'))
+    config.read(os.path.join(os.path.expanduser("~"), '.edgerc'))
     client_token = config['cps']['client_token']
     client_secret = config['cps']['client_secret']
     access_token = config['cps']['access_token']
     access_hostname = config['cps']['host']
     session = requests.Session()
     session.auth = EdgeGridAuth(
-                client_token = client_token,
-                client_secret = client_secret,
-                access_token = access_token
-                )
+        client_token=client_token,
+        client_secret=client_secret,
+        access_token=access_token
+    )
 except (NameError, AttributeError, KeyError):
-    rootLogger.info('\nLooks like ' + os.path.join(os.path.expanduser("~"),'.edgerc') + ' is missing or has invalid entries\n')
+    rootLogger.info('\nLooks like ' + os.path.join(os.path.expanduser("~"),
+                                                   '.edgerc') + ' is missing or has invalid entries\n')
     exit(-1)
 
-#Main arguments
-parser = argparse.ArgumentParser(description='OpenAPI credentials are read from ~/.edgerc file')
-parser.add_argument("-help",help="Use -h for detailed help options",action="store_true")
-parser.add_argument("--setup","-s",help="Initial setup to download all necessary Enrollments information",action="store_true")
-parser.add_argument("--getDetail",help="Get detailed information about specific certificate",action="store_true")
-parser.add_argument("--getStatus",help="Get current status about specific certificate",action="store_true")
-parser.add_argument("--audit",help="Generate a complete audit report of all certificates",action="store_true")
-parser.add_argument("--cn",help="Hostname/CommonName of certificate of interest")
-parser.add_argument("--certDetails",help="Hostname/CommonName/SAN of certificate of interest")
+# Main arguments
+parser = argparse.ArgumentParser(
+    description='OpenAPI credentials are read from ~/.edgerc file')
+parser.add_argument(
+    "-help", help="Use -h for detailed help options", action="store_true")
+parser.add_argument(
+    "--setup", "-s", help="Initial setup to download all necessary Enrollments information", action="store_true")
+parser.add_argument(
+    "--getDetail", help="Get detailed information about specific certificate", action="store_true")
+parser.add_argument(
+    "--getStatus", help="Get current status about specific certificate", action="store_true")
+parser.add_argument(
+    "--audit", help="Generate a complete audit report of all certificates", action="store_true")
+parser.add_argument(
+    "--cn", help="Hostname/CommonName of certificate of interest")
+parser.add_argument(
+    "--certDetails", help="Hostname/CommonName/SAN of certificate of interest")
 
 
-
-#Additional arguments
+# Additional arguments
 #parser.add_argument("-verbose",help="Display detailed rule information for a specific version (only for -getDetail method with -version)", action="store_true")
 #parser.add_argument("--SANList",help="Hostname/CommonName/SAN of certificate of interest")
-parser.add_argument("--debug",help="Optional parameter for extra logging",action="store_true")
-parser.add_argument("--listEnrollments",help="List all enrollments",action="store_true")
+parser.add_argument(
+    "--debug", help="Optional parameter for extra logging", action="store_true")
+parser.add_argument("--listEnrollments",
+                    help="List all enrollments", action="store_true")
 args = parser.parse_args()
 
 
-#Check for valid command line arguments
+# Check for valid command line arguments
 if not args.setup and not args.getDetail and not args.cn and not args.audit and not args.certDetails \
-    and not args.getStatus and not args.listEnrollments and not args.debug:
+        and not args.getStatus and not args.listEnrollments and not args.debug:
     rootLogger.info("Use -h for help options")
     exit(-1)
 
@@ -100,6 +111,7 @@ def printData(title, data):
     rootLogger.info('\n')
     title.append('Values')
     table = PrettyTable(title)
+    table.align = "l"
     for eachItem in data.keys():
         value = []
         value.append(str(eachItem))
@@ -108,8 +120,8 @@ def printData(title, data):
     rootLogger.info(table)
 
 
-#Override log level if user wants to run in debug mode
-#Set Log Level to DEBUG, INFO, WARNING, ERROR, CRITICAL
+# Override log level if user wants to run in debug mode
+# Set Log Level to DEBUG, INFO, WARNING, ERROR, CRITICAL
 if args.debug:
     rootLogger.setLevel(logging.DEBUG)
 
@@ -117,7 +129,7 @@ if args.debug:
 if args.setup:
     rootLogger.info('Setting up required files.... please wait')
     rootLogger.info('\nDetermining the contracts available.')
-    #Create the wrapper object to make calls
+    # Create the wrapper object to make calls
     cpsObject = cps(access_hostname)
     contractsResponse = cpsObject.getContracts(session)
     if contractsResponse.status_code == 200:
@@ -126,38 +138,47 @@ if args.setup:
         for eachContract in contractsResponse.json()['contracts']['items']:
             contractName = eachContract['contractTypeName']
             contractId = eachContract['contractId'][4:]
-            rootLogger.info('\nProcessing Enrollments under contract: ' + contractId)
+            rootLogger.info(
+                '\nProcessing Enrollments under contract: ' + contractId)
             enrollmentsPath = os.path.join('enrollments')
-            #Delete the groups folder before we start
+            # Delete the groups folder before we start
             if os.path.exists(enrollmentsPath):
                 shutil.rmtree(enrollmentsPath)
             if not os.path.exists(enrollmentsPath):
                 os.makedirs(enrollmentsPath)
-            enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
+            enrollmentsResponse = cpsObject.listEnrollments(
+                session, contractId)
             if enrollmentsResponse.status_code == 200:
-                with open(os.path.join(enrollmentsPath,'enrollments.json'),'a') as enrollmentsFile:
+                with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
                     enrollmentsJson = enrollmentsResponse.json()
-                    #Find number of groups using len function
+                    # Find number of groups using len function
                     totalEnrollments = len(enrollmentsJson['enrollments'])
-                    rootLogger.info('Total of ' + str(totalEnrollments) + ' enrollments are found.')
+                    rootLogger.info(
+                        'Total of ' + str(totalEnrollments) + ' enrollments are found.')
                     for everyEnrollment in enrollmentsJson['enrollments']:
                         enrollmentInfo = {}
                         if 'csr' in everyEnrollment:
                             #print(json.dumps(everyEnrollment, indent = 4))
                             enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
                             enrollmentInfo['contractId'] = contractId
-                            enrollmentInfo['enrollmentId'] = int(everyEnrollment['location'].split('/')[-1])
+                            enrollmentInfo['enrollmentId'] = int(
+                                everyEnrollment['location'].split('/')[-1])
                             enrollmentOutput.append(enrollmentInfo)
-                    enrollmentsFile.write(json.dumps(enrollmentOutput,indent=4))
-                    rootLogger.info('Enrollments details are stored in ' + '"' + os.path.join(enrollmentsPath,'enrollments.json') + '"')
+                    enrollmentsFile.write(
+                        json.dumps(enrollmentOutput, indent=4))
+                    rootLogger.info('Enrollments details are stored in ' + '"' +
+                                    os.path.join(enrollmentsPath, 'enrollments.json') + '"')
             else:
-                rootLogger.info('Unable to list Enrollments under contract: ' + contractId)
-                rootLogger.debug(json.dumps(enrollmentsResponse.json(), indent=4))
-                #Cannot exit here as there might be other contracts which might
-                #have enrollments
-                #exit(-1)
+                rootLogger.info(
+                    'Unable to list Enrollments under contract: ' + contractId)
+                rootLogger.debug(json.dumps(
+                    enrollmentsResponse.json(), indent=4))
+                # Cannot exit here as there might be other contracts which might
+                # have enrollments
+                # exit(-1)
     else:
-        rootLogger.info('Unable to find contracts. Please run in -debug mode to know the reason.')
+        rootLogger.info(
+            'Unable to find contracts. Please run in -debug mode to know the reason.')
         rootLogger.debug(json.dumps(contractsResponse.json(), indent=4))
 
 
@@ -171,15 +192,17 @@ if args.getDetail:
     for root, dirs, files in os.walk(enrollmentsPath):
         localEnrollmentsFile = 'enrollments.json'
         if localEnrollmentsFile in files:
-            with open(os.path.join(enrollmentsPath,localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+            with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
-            #rootLogger.info(policyStringContent)
+            # rootLogger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
                     enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    rootLogger.info('Fetching details of ' + cn + ' with enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(session, enrollmentId)
+                    rootLogger.info('Fetching details of ' + cn +
+                                    ' with enrollmentId: ' + str(enrollmentId))
+                    enrollmentDetails = cpsObject.getEnrollment(
+                        session, enrollmentId)
                     if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
 
@@ -195,7 +218,6 @@ if args.getDetail:
                         printableData['signatureAlgorithm'] = enrollmentDetailsJson['signatureAlgorithm']
                         printData(['General'], printableData)
 
-
                         printableData = {}
                         printableData['commonName'] = enrollmentDetailsJson['csr']['cn']
                         printableData['organization'] = enrollmentDetailsJson['org']['name']
@@ -204,7 +226,6 @@ if args.getDetail:
                         printableData['state'] = enrollmentDetailsJson['csr']['st']
                         printableData['city'] = enrollmentDetailsJson['csr']['l']
                         printData(['CertInfo'], printableData)
-
 
                         printableData = {}
                         printableData['name'] = enrollmentDetailsJson['org']['name']
@@ -217,24 +238,25 @@ if args.getDetail:
                         printableData['phone'] = enrollmentDetailsJson['org']['phone']
                         printData(['CompanyInfo'], printableData)
 
-
                         printableData = {}
-                        #Admin details
+                        # Admin details
                         printableData['firstName'] = enrollmentDetailsJson['adminContact']['firstName']
                         printableData['lastName'] = enrollmentDetailsJson['adminContact']['lastName']
                         printableData['phone'] = enrollmentDetailsJson['adminContact']['phone']
                         printableData['email'] = enrollmentDetailsJson['adminContact']['email']
-                        #Tech details
+                        # Tech details
                         printableData['techFirstName'] = enrollmentDetailsJson['techContact']['firstName']
                         printableData['techLastName'] = enrollmentDetailsJson['techContact']['lastName']
                         printableData['techPhone'] = enrollmentDetailsJson['techContact']['phone']
                         printableData['techEmail'] = enrollmentDetailsJson['techContact']['email']
                         printData(['ContactInfo'], printableData)
                     else:
-                        rootLogger.info( 'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                        rootLogger.info(
+                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
                         exit(-1)
         else:
-            rootLogger.info('Unable to find enrollments.json file. Try to run -setup.')
+            rootLogger.info(
+                'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
 if args.getStatus:
@@ -247,43 +269,55 @@ if args.getStatus:
     for root, dirs, files in os.walk(enrollmentsPath):
         localEnrollmentsFile = 'enrollments.json'
         if localEnrollmentsFile in files:
-            with open(os.path.join(enrollmentsPath,localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+            with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
-            #rootLogger.info(policyStringContent)
+            # rootLogger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
                     enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    rootLogger.info('Fetching details of ' + cn + ' with enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(session, enrollmentId)
+                    rootLogger.info('Fetching details of ' + cn +
+                                    ' with enrollmentId: ' + str(enrollmentId))
+                    enrollmentDetails = cpsObject.getEnrollment(
+                        session, enrollmentId)
                     if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
                         if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                            rootLogger.info('The certificate is active, there are no current pending changes.')
+                            rootLogger.info(
+                                'The certificate is active, there are no current pending changes.')
                         elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                            changeId = int(enrollmentDetailsJson['pendingChanges'].split('/')[-1])
-                            changeStatusResponse = cpsObject.getChangeStatus(session, enrollmentId, changeId)
+                            changeId = int(
+                                enrollmentDetailsJson['pendingChanges'].split('/')[-1])
+                            changeStatusResponse = cpsObject.getChangeStatus(
+                                session, enrollmentId, changeId)
                             if changeStatusResponse.status_code == 200:
                                 changeStatusResponseJson = changeStatusResponse.json()
-                                table = PrettyTable('STATUS', 'DESCRIPTION', 'ERROR')
+                                table = PrettyTable(
+                                    'STATUS', 'DESCRIPTION', 'ERROR')
                                 if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
-                                    table.add_row(changeStatusResponseJson['statusInfo']['status'],changeStatusResponseJson['statusInfo']['description'],changeStatusResponseJson['error']['description'])
+                                    table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
+                                                  'statusInfo']['description'], changeStatusResponseJson['error']['description'])
                                 else:
-                                    #There is no error
-                                    table.add_row(changeStatusResponseJson['statusInfo']['status'],changeStatusResponseJson['statusInfo']['description'],'')
+                                    # There is no error
+                                    table.add_row(
+                                        changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson['statusInfo']['description'], '')
                                 rootLogger.info(table)
                             else:
-                                rootLogger.info('Unable to determine change status.')
+                                rootLogger.info(
+                                    'Unable to determine change status.')
                                 exit(-1)
                         else:
-                            rootLogger.info('Unable to determine change status.')
+                            rootLogger.info(
+                                'Unable to determine change status.')
                             exit(-1)
 
                     else:
-                        rootLogger.info( 'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                        rootLogger.info(
+                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
                         exit(-1)
         else:
-            rootLogger.info('Unable to find enrollments.json file. Try to run -setup.')
+            rootLogger.info(
+                'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
 if args.listEnrollments:
@@ -292,23 +326,25 @@ if args.listEnrollments:
     enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
     if enrollmentsResponse.status_code == 200:
         enrollmentsJson = enrollmentsResponse.json()
-        #Find number of groups using len function
+        # Find number of groups using len function
         totalEnrollments = len(enrollmentsJson['enrollments'])
-        rootLogger.info('Total of ' + str(totalEnrollments) + ' enrollments are found.')
-        table = PrettyTable(['Common Name','Total number of SAN(s)','Enrollment ID','Validation Type','Certificate Type'])
+        rootLogger.info('Total of ' + str(totalEnrollments) +
+                        ' enrollments are found.')
+        table = PrettyTable(['Enrollment ID', 'Common Name', 'Certificate Type', 'Validation Type',
+                            'Total number of SAN(s)'])
 
         for everyEnrollment in enrollmentsJson['enrollments']:
             if 'csr' in everyEnrollment:
                 rowData = []
                 #print(json.dumps(everyEnrollment, indent = 4))
+                rowData.append(everyEnrollment['location'].split('/')[-1])
                 rowData.append(everyEnrollment['csr']['cn'])
+                rowData.append(everyEnrollment['certificateType'])
+                rowData.append(everyEnrollment['validationType'])
                 if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
                     rowData.append(str(len(everyEnrollment['csr']['sans'])))
                 else:
                     rowData.append('NONE')
-                rowData.append(everyEnrollment['location'].split('/')[-1])
-                rowData.append(everyEnrollment['validationType'])
-                rowData.append(everyEnrollment['certificateType'])
             table.add_row(rowData)
         rootLogger.info(table)
 
@@ -318,37 +354,43 @@ if args.audit:
     if not os.path.exists('output'):
         os.makedirs('output')
     outputFile = os.path.join('output', 'CPSAudit.csv')
-    with open(os.path.join('output','CPSAudit.csv'),'w') as fileHandler:
-        fileHandler.write('Enrollment ID,CN,SAN(S),Status,Expiration,Validation,Type,Contact\n')
+    with open(os.path.join('output', 'CPSAudit.csv'), 'w') as fileHandler:
+        fileHandler.write(
+            'Enrollment ID,CN,SAN(S),Status,Expiration,Validation,Type,Contact\n')
     cpsObject = cps(access_hostname)
     for root, dirs, files in os.walk(enrollmentsPath):
         localEnrollmentsFile = 'enrollments.json'
         if localEnrollmentsFile in files:
-            with open(os.path.join(enrollmentsPath,localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+            with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
-            #rootLogger.info(policyStringContent)
+            # rootLogger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 enrollmentId = everyEnrollmentInfo['enrollmentId']
-                enrollmentDetails = cpsObject.getEnrollment(session, enrollmentId)
+                enrollmentDetails = cpsObject.getEnrollment(
+                    session, enrollmentId)
                 certResponse = cpsObject.getCertificate(session, enrollmentId)
 
                 if enrollmentDetails.status_code == 200 and certResponse.status_code == 200:
                     enrollmentDetailsJson = enrollmentDetails.json()
-                    #print(json.dumps(enrollmentDetails.json(),indent=4))
-                    cert = x509.load_pem_x509_certificate(certResponse.json()['certificate'].encode(), default_backend())
+                    # print(json.dumps(enrollmentDetails.json(),indent=4))
+                    cert = x509.load_pem_x509_certificate(
+                        certResponse.json()['certificate'].encode(), default_backend())
                     Status = 'UNKNOWN'
                     if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         Status = 'PENDING'
-                    with open(os.path.join('output','CPSAudit.csv'),'a') as fileHandler:
-                        fileHandler.write(str(enrollmentId) + ', '+ enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType'] \
-                        + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
+                    with open(os.path.join('output', 'CPSAudit.csv'), 'a') as fileHandler:
+                        fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType']
+                                          + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
                 else:
-                    rootLogger.info('Unable to fetch Enrollment/Certificate details for enrollmentId: ' + str(enrollmentId))
-                    rootLogger.debug('Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
-                    rootLogger.debug('Reason: ' + json.dumps(certResponse.json(), indent=4))
+                    rootLogger.info(
+                        'Unable to fetch Enrollment/Certificate details for enrollmentId: ' + str(enrollmentId))
+                    rootLogger.debug(
+                        'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
+                    rootLogger.debug(
+                        'Reason: ' + json.dumps(certResponse.json(), indent=4))
 
-#Final or common Successful exit
+# Final or common Successful exit
 exit(0)
