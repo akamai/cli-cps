@@ -86,10 +86,6 @@ parser.add_argument("--certDetails",help="Hostname/CommonName/SAN of certificate
 #parser.add_argument("--SANList",help="Hostname/CommonName/SAN of certificate of interest")
 parser.add_argument("--debug",help="Optional parameter for extra logging",action="store_true")
 parser.add_argument("--listEnrollments",help="List all enrollments",action="store_true")
-parser.add_argument("--general",help="To be used with --getDetail to display general details",action="store_true")
-parser.add_argument("--certInfo",help="To be used with --getDetail to display Certificate information",action="store_true")
-parser.add_argument("--companyInfo",help="To be used with --getDetail to display details about company",action="store_true")
-parser.add_argument("--contactInfo",help="To be used with --getDetail to display contact details(Admin and Tech)",action="store_true")
 args = parser.parse_args()
 
 
@@ -101,11 +97,14 @@ if not args.setup and not args.getDetail and not args.cn and not args.audit and 
 
 
 def printData(title, data):
-    #rootLogger.info('I was called with ' + str(len(data)))
+    rootLogger.info('\n')
+    title.append('Values')
     table = PrettyTable(title)
     for eachItem in data.keys():
-        value = str(eachItem).upper() + ': ' + str(data[eachItem])
-        table.add_row([value])
+        value = []
+        value.append(str(eachItem))
+        value.append(str(data[eachItem]))
+        table.add_row(value)
     rootLogger.info(table)
 
 
@@ -117,39 +116,49 @@ if args.debug:
 
 if args.setup:
     rootLogger.info('Setting up required files.... please wait')
+    rootLogger.info('\nDetermining the contracts available.')
     #Create the wrapper object to make calls
     cpsObject = cps(access_hostname)
-    rootLogger.info('Processing Enrollments...')
-    contractId = 'M-1O66EMG'
-    enrollmentsPath = os.path.join('enrollments')
-    #Delete the groups folder before we start
-    if os.path.exists(enrollmentsPath):
-        shutil.rmtree(enrollmentsPath)
-    if not os.path.exists(enrollmentsPath):
-        os.makedirs(enrollmentsPath)
-    enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
-    if enrollmentsResponse.status_code == 200:
-        with open(os.path.join(enrollmentsPath,'enrollments.json'),'w') as enrollmentsFile:
-            enrollmentsJson = enrollmentsResponse.json()
-            #Find number of groups using len function
-            totalEnrollments = len(enrollmentsJson['enrollments'])
-            rootLogger.info('Total of ' + str(totalEnrollments) + ' enrollments are found.')
-            enrollmentOutput = []
-            for everyEnrollment in enrollmentsJson['enrollments']:
-                enrollmentInfo = {}
-                if 'csr' in everyEnrollment:
-                    #print(json.dumps(everyEnrollment, indent = 4))
-                    enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
-                    enrollmentInfo['contractId'] = contractId
-                    if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
-                        enrollmentInfo['sans'] = everyEnrollment['csr']['sans']
-                    enrollmentInfo['enrollmentId'] = int(everyEnrollment['location'].split('/')[-1])
-                    enrollmentOutput.append(enrollmentInfo)
-            enrollmentsFile.write(json.dumps(enrollmentOutput,indent=4))
-            rootLogger.info('Enrollments details are stored in ' + '"' + os.path.join(enrollmentsPath,'enrollments.json') + '"')
+    contractsResponse = cpsObject.getContracts(session)
+    if contractsResponse.status_code == 200:
+        enrollmentOutput = []
+        rootLogger.debug(json.dumps(contractsResponse.json(), indent=4))
+        for eachContract in contractsResponse.json()['contracts']['items']:
+            contractName = eachContract['contractTypeName']
+            contractId = eachContract['contractId'][4:]
+            rootLogger.info('\nProcessing Enrollments under contract: ' + contractId)
+            enrollmentsPath = os.path.join('enrollments')
+            #Delete the groups folder before we start
+            if os.path.exists(enrollmentsPath):
+                shutil.rmtree(enrollmentsPath)
+            if not os.path.exists(enrollmentsPath):
+                os.makedirs(enrollmentsPath)
+            enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
+            if enrollmentsResponse.status_code == 200:
+                with open(os.path.join(enrollmentsPath,'enrollments.json'),'a') as enrollmentsFile:
+                    enrollmentsJson = enrollmentsResponse.json()
+                    #Find number of groups using len function
+                    totalEnrollments = len(enrollmentsJson['enrollments'])
+                    rootLogger.info('Total of ' + str(totalEnrollments) + ' enrollments are found.')
+                    for everyEnrollment in enrollmentsJson['enrollments']:
+                        enrollmentInfo = {}
+                        if 'csr' in everyEnrollment:
+                            #print(json.dumps(everyEnrollment, indent = 4))
+                            enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
+                            enrollmentInfo['contractId'] = contractId
+                            enrollmentInfo['enrollmentId'] = int(everyEnrollment['location'].split('/')[-1])
+                            enrollmentOutput.append(enrollmentInfo)
+                    enrollmentsFile.write(json.dumps(enrollmentOutput,indent=4))
+                    rootLogger.info('Enrollments details are stored in ' + '"' + os.path.join(enrollmentsPath,'enrollments.json') + '"')
+            else:
+                rootLogger.info('Unable to list Enrollments under contract: ' + contractId)
+                rootLogger.debug(json.dumps(enrollmentsResponse.json(), indent=4))
+                #Cannot exit here as there might be other contracts which might
+                #have enrollments
+                #exit(-1)
     else:
-        rootLogger.info('Unable to list Enrollments.')
-        exit(-1)
+        rootLogger.info('Unable to find contracts. Please run in -debug mode to know the reason.')
+        rootLogger.debug(json.dumps(contractsResponse.json(), indent=4))
 
 
 if args.getDetail:
@@ -173,68 +182,54 @@ if args.getDetail:
                     enrollmentDetails = cpsObject.getEnrollment(session, enrollmentId)
                     if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
+
                         printableData = {}
-                        printCustom = 'No'
-                        if args.general:
-                            printCustom = 'Yes'
-                            printableData['validation'] = enrollmentDetailsJson['validationType']
-                            printableData['cerificateType'] = enrollmentDetailsJson['certificateType']
-                            printableData['cA'] = 'Symantec'
-                            if 'sni' in enrollmentDetailsJson['networkConfiguration'] and enrollmentDetailsJson['networkConfiguration']['sni'] is not None:
-                                printableData['sniOnly'] = enrollmentDetailsJson['networkConfiguration']['sni']['dnsNames']
-                            else:
-                                printableData['sniOnly'] = 'Off'
-                            printableData['changeManagement'] = enrollmentDetailsJson['changeManagement']
-                            printableData['signatureAlgorithm'] = enrollmentDetailsJson['signatureAlgorithm']
-                            printData(['General'], printableData)
+                        printableData['validation'] = enrollmentDetailsJson['validationType']
+                        printableData['cerificateType'] = enrollmentDetailsJson['certificateType']
+                        printableData['cA'] = 'Symantec'
+                        if 'sni' in enrollmentDetailsJson['networkConfiguration'] and enrollmentDetailsJson['networkConfiguration']['sni'] is not None:
+                            printableData['sniOnly'] = enrollmentDetailsJson['networkConfiguration']['sni']['dnsNames']
+                        else:
+                            printableData['sniOnly'] = 'Off'
+                        printableData['changeManagement'] = enrollmentDetailsJson['changeManagement']
+                        printableData['signatureAlgorithm'] = enrollmentDetailsJson['signatureAlgorithm']
+                        printData(['General'], printableData)
 
-                        if args.certInfo:
-                            printCustom = 'Yes'
-                            printableData['commonName'] = enrollmentDetailsJson['csr']['cn']
-                            printableData['organization'] = enrollmentDetailsJson['org']['name']
-                            printableData['unit'] = enrollmentDetailsJson['csr']['ou']
-                            printableData['country'] = enrollmentDetailsJson['csr']['c']
-                            printableData['state'] = enrollmentDetailsJson['csr']['st']
-                            printableData['city'] = enrollmentDetailsJson['csr']['l']
-                            printData(['CertInfo'], printableData)
 
-                        if args.companyInfo:
-                            printCustom = 'Yes'
-                            printableData['name'] = enrollmentDetailsJson['org']['name']
-                            printableData['addressLineOne'] = enrollmentDetailsJson['org']['addressLineOne']
-                            printableData['addressLineTwo'] = enrollmentDetailsJson['org']['addressLineTwo']
-                            printableData['city'] = enrollmentDetailsJson['org']['city']
-                            printableData['region'] = enrollmentDetailsJson['org']['region']
-                            printableData['postalCode'] = enrollmentDetailsJson['org']['postalCode']
-                            printableData['country'] = enrollmentDetailsJson['org']['country']
-                            printableData['phone'] = enrollmentDetailsJson['org']['phone']
-                            printData(['CompanyInfo'], printableData)
+                        printableData = {}
+                        printableData['commonName'] = enrollmentDetailsJson['csr']['cn']
+                        printableData['organization'] = enrollmentDetailsJson['org']['name']
+                        printableData['unit'] = enrollmentDetailsJson['csr']['ou']
+                        printableData['country'] = enrollmentDetailsJson['csr']['c']
+                        printableData['state'] = enrollmentDetailsJson['csr']['st']
+                        printableData['city'] = enrollmentDetailsJson['csr']['l']
+                        printData(['CertInfo'], printableData)
 
-                        if args.contactInfo:
-                            printCustom = 'Yes'
-                            #Admin details
-                            printableData['firstName'] = enrollmentDetailsJson['adminContact']['firstName']
-                            printableData['lastName'] = enrollmentDetailsJson['adminContact']['lastName']
-                            printableData['phone'] = enrollmentDetailsJson['adminContact']['phone']
-                            printableData['email'] = enrollmentDetailsJson['adminContact']['email']
-                            #Tech details
-                            printableData['techFirstName'] = enrollmentDetailsJson['techContact']['firstName']
-                            printableData['techLastName'] = enrollmentDetailsJson['techContact']['lastName']
-                            printableData['techPhone'] = enrollmentDetailsJson['techContact']['phone']
-                            printableData['techEmail'] = enrollmentDetailsJson['techContact']['email']
-                            printData(['ContactInfo'], printableData)
 
-                        if printCustom == 'No':
-                            table = PrettyTable(['TYPE','SANS', 'STATUS','ADMIN_EMAIL'])
-                            if 'sans' in enrollmentDetailsJson['csr']:
-                                if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                                    for eachSan in enrollmentDetailsJson['csr']['sans']:
-                                        table.add_row([enrollmentDetailsJson['certificateType'],eachSan, 'ACTIVE',enrollmentDetailsJson['adminContact']['email']])
-                                else:
-                                    for eachSan in enrollmentDetailsJson['csr']['sans']:
-                                        table.add_row([enrollmentDetailsJson['certificateType'],eachSan, 'INACTIVE'],enrollmentDetailsJson['adminContact']['email'])
-                            rootLogger.info(table)
-                            rootLogger.info('\n You can use --general, --certInfo, --companyInfo, --contactInfo for detailed info on each section.')
+                        printableData = {}
+                        printableData['name'] = enrollmentDetailsJson['org']['name']
+                        printableData['addressLineOne'] = enrollmentDetailsJson['org']['addressLineOne']
+                        printableData['addressLineTwo'] = enrollmentDetailsJson['org']['addressLineTwo']
+                        printableData['city'] = enrollmentDetailsJson['org']['city']
+                        printableData['region'] = enrollmentDetailsJson['org']['region']
+                        printableData['postalCode'] = enrollmentDetailsJson['org']['postalCode']
+                        printableData['country'] = enrollmentDetailsJson['org']['country']
+                        printableData['phone'] = enrollmentDetailsJson['org']['phone']
+                        printData(['CompanyInfo'], printableData)
+
+
+                        printableData = {}
+                        #Admin details
+                        printableData['firstName'] = enrollmentDetailsJson['adminContact']['firstName']
+                        printableData['lastName'] = enrollmentDetailsJson['adminContact']['lastName']
+                        printableData['phone'] = enrollmentDetailsJson['adminContact']['phone']
+                        printableData['email'] = enrollmentDetailsJson['adminContact']['email']
+                        #Tech details
+                        printableData['techFirstName'] = enrollmentDetailsJson['techContact']['firstName']
+                        printableData['techLastName'] = enrollmentDetailsJson['techContact']['lastName']
+                        printableData['techPhone'] = enrollmentDetailsJson['techContact']['phone']
+                        printableData['techEmail'] = enrollmentDetailsJson['techContact']['email']
+                        printData(['ContactInfo'], printableData)
                     else:
                         rootLogger.info( 'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
                         exit(-1)
