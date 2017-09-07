@@ -14,10 +14,10 @@ import json
 
 
 class cps(object):
-    def __init__(self,access_hostname):
+    def __init__(self, access_hostname):
         self.access_hostname = access_hostname
 
-    def getContracts(self,session):
+    def getContracts(self, session):
         """
         Function to fetch all contracts
 
@@ -35,7 +35,7 @@ class cps(object):
         contractsResponse = session.get(contractsUrl)
         return contractsResponse
 
-    def createEnrollment(self,session,contractId,data):
+    def createEnrollment(self, session, contractId, data):
         """
         Function to Create an Enrollment
 
@@ -50,14 +50,40 @@ class cps(object):
             (createEnrollmentRespose) Object with all details
         """
         headers = {
-            "Content-Type": "application/vnd.akamai.cps.enrollment.v1+json",
+            "Content-Type": "application/vnd.akamai.cps.enrollment.v4+json",
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
-        createEnrollmentUrl = 'https://' + self.access_hostname + '/cps/v2/enrollments?contractId=' + contractId
-        createEnrollmentResponse = session.post(createEnrollmentUrl,data=data,headers=headers)
+        createEnrollmentUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments?contractId=' + contractId + '&deploy-not-after=2018-01-01&deploy-not-before=2017-01-01'
+        createEnrollmentResponse = session.post(
+            createEnrollmentUrl, data=data, headers=headers)
         return createEnrollmentResponse
 
-    def listEnrollments(self,session,contractId):
+    def updateEnrollment(self, session, enrollmentId, data):
+        """
+        Function to Create an Enrollment
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        updateEnrollmentRespose : updateEnrollmentRespose
+            (updateEnrollmentRespose) Object with all details
+        """
+        headers = {
+            "Content-Type": "application/vnd.akamai.cps.enrollment.v4+json",
+            "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
+        }
+        updateEnrollmentUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + str(enrollmentId) + '?allow-cancel-pending-changes=true&deploy-not-after=2018-01-01&deploy-not-before=2017-01-01'
+        updateEnrollmentResponse = session.put(
+            updateEnrollmentUrl, data=data, headers=headers)
+        return updateEnrollmentResponse
+
+    def listEnrollments(self, session, contractId):
         """
         Function to List Enrollments
 
@@ -72,13 +98,15 @@ class cps(object):
             (listEnrollmentsRespose) Object with all details
         """
         headers = {
-            "Accept": "application/vnd.akamai.cps.enrollments.v1+json"
+            "Accept": "application/vnd.akamai.cps.enrollments.v4+json"
         }
-        listEnrollmentsUrl = 'https://' + self.access_hostname + '/cps/v2/enrollments?contractId=' + contractId
-        listEnrollmentsResponse = session.get(listEnrollmentsUrl, headers=headers)
+        listEnrollmentsUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments?contractId=' + contractId
+        listEnrollmentsResponse = session.get(
+            listEnrollmentsUrl, headers=headers)
         return listEnrollmentsResponse
 
-    def getEnrollment(self,session,enrollmentId):
+    def getEnrollment(self, session, enrollmentId):
         """
         Function to Get an Enrollment
 
@@ -93,13 +121,14 @@ class cps(object):
             (getEnrollmentRespose) Object with all details
         """
         headers = {
-            "Accept": "application/vnd.akamai.cps.enrollments.v1+json"
+            "Accept": "application/vnd.akamai.cps.enrollment.v4+json"
         }
-        getEnrollmentUrl = 'https://' + self.access_hostname + '/cps/v2/enrollments/' + str(enrollmentId)
-        getEnrollmentResponse = session.get(getEnrollmentUrl)
+        getEnrollmentUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + str(enrollmentId)
+        getEnrollmentResponse = session.get(getEnrollmentUrl, headers=headers)
         return getEnrollmentResponse
 
-    def getChangeStatus(self,session,enrollmentId,changeId):
+    def getChangeStatus(self, session, enrollmentId, changeId):
         """
         Function to Get details about changes made to an enrollment
 
@@ -114,13 +143,38 @@ class cps(object):
             (getChangeStatusRespose) Object with all details
         """
         headers = {
-            "Accept": "application/vnd.akamai.cps.enrollments.v1+json"
+            "Accept": "application/vnd.akamai.cps.change.v1+json"
         }
-        getChangeStatusUrl = 'https://' + self.access_hostname + '/cps/v2/enrollments/' + str(enrollmentId) + '/changes/' + str(changeId)
-        getChangeStatusResponse = session.get(getChangeStatusUrl)
+        getChangeStatusUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + \
+            str(enrollmentId) + '/changes/' + str(changeId)
+        getChangeStatusResponse = session.get(getChangeStatusUrl, headers=headers)
         return getChangeStatusResponse
 
-    def getCertificate(self,session,enrollmentId):
+    def cancelChange(self, session, enrollmentId, changeId):
+        """
+        Function to cancel a change
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        cancelChangeResponse : cancelChangeResponse
+            (cancelChangeResponse) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.change-id.v1+json"
+        }
+        cancelChangeUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + str(enrollmentId) + '/changes/' + str(changeId)
+        cancelChangeResponse = session.delete(
+            cancelChangeUrl, headers=headers)
+        return cancelChangeResponse
+
+    def getCertificate(self, session, enrollmentId):
         """
         Function to Get a Certificate
 
@@ -135,8 +189,10 @@ class cps(object):
             (getCertificateRespose) Object with all details
         """
         headers = {
-            "Accept": "application/vnd.akamai.cps.enrollments.v1+json"
+            "Accept": "application/vnd.akamai.cps.deployment.v3+json"
         }
-        getCertificateUrl = 'https://' + self.access_hostname + '/cps/v2/enrollments/' + str(enrollmentId) + '/deployments/production'
-        getCertificateResponse = session.get(getCertificateUrl)
+        getCertificateUrl = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + \
+            str(enrollmentId) + '/deployments/production'
+        getCertificateResponse = session.get(getCertificateUrl, headers=headers)
         return getCertificateResponse
