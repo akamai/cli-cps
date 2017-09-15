@@ -28,6 +28,7 @@ import os
 import logging
 import shutil
 import sys
+import yaml
 from prettytable import PrettyTable
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -222,9 +223,6 @@ def create_sub_command(
 
     return action
 
-
-
-
 def printData(title, data):
     root_logger.info('\n')
     title.append('Values')
@@ -236,7 +234,6 @@ def printData(title, data):
         value.append(str(data[eachItem]))
         table.add_row(value)
     root_logger.info(table)
-
 
 # Override log level if user wants to run in debug mode
 # Set Log Level to DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -512,16 +509,26 @@ def audit(args):
                         'Reason: ' + json.dumps(certResponse.json(), indent=4))
 
 def create(args):
-    with open(os.path.join('input.json'), mode='r') as inputFileHandler:
-        certificateContent = inputFileHandler.read()
-    # root_logger.info(policyStringContent)
-    certificateJsonContent = json.dumps(json.loads(certificateContent))
+    filPath = os.path.join('templates','ov_san.yml')
+    with open(filPath,'r') as yamlContentHandler:
+        yamlContent = yamlContentHandler.read()
+        certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
+        #print(certificateJsonContent)
+
+    '''with open('input.json','r') as fileHandler:
+        certificateContent = fileHandler.read()
+        certificateJsonContent = json.dumps(json.loads(certificateContent))'''
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     contractId = '1-5C13O8'
     createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
-    root_logger.info(createEnrollmentResponse.status_code)
-    root_logger.info(json.dumps(createEnrollmentResponse.json(), indent=4))
+    if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
+        root_logger.info('FAIL: ')
+        root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
+        root_logger.info(createEnrollmentResponse.json()['title'] + ' and ' + createEnrollmentResponse.json()['detail'])
+    else:
+        root_logger.info('Successfully created Enrollment. \n\nRunning setup again to update your local cache')
+        setup(args)
 
 def update(args):
     if not args.cn:
