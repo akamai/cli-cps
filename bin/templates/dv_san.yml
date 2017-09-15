@@ -1,0 +1,77 @@
+---
+# #######################################
+# Basic Cert Info #
+# #######################################
+validationType: dv
+ra: lets-encrypt
+certificateType: san
+# #######################################
+# Akamai Defaults (DO NOT MODIFY)
+# #######################################
+enableMultiStackedCertificates: true
+signatureAlgorithm: SHA-256
+networkConfiguration:
+  preferredCiphers: ak-akamai-default-2016q3
+  mustHaveCiphers: ak-akamai-default-2016q3
+  disallowedTlsVersions: []
+  sni:
+  secureNetwork: enhanced-tls
+  geography: core
+# #######################################
+# Customer Edit (Below)
+# #######################################
+# Change Management (true or false)
+changeManagement: true
+# Technical Contact Info
+techContact:
+  city: Cambridge
+  organizationName: Test Cert
+  firstName: R2
+  addressLineTwo:
+  title: Astromech Droid
+  addressLineOne: 150 Broadway
+  lastName: D2
+  region: MA
+  phone: 617-555-0111
+  country: US
+  postalCode: 02142
+  email: vbhat@akamai.com
+# Admin Contact
+adminContact:
+  city: Cambridge
+  organizationName: Test Cert
+  firstName: Darth
+  addressLineTwo:
+  title: Lord
+  addressLineOne: 666 Evil Way
+  lastName: Vader
+  region: MA
+  phone: 617-555-0123
+  country: US
+  postalCode: 02142
+  email: aetsai@akamai.com
+# Org Info
+org:
+  city: Cambridge
+  name: Test Cert
+  addressLineTwo:
+  addressLineOne: 150 Broadway
+  country: US
+  region: MA
+  phone: 617-555-0111
+  postalCode: 02142
+# CSR Info
+csr:
+  c: US
+  cn: test.devops.com
+  l: Cambridge
+  o: Akamai
+  st: MA
+  ou: WebEx
+  # Specify at list of SAN entries (at least 1 should be specified)
+  # - san entry 1
+  # - san entry 2
+  sans:
+  - test1.devops.com
+  - test2.devops.com
+# #######################################
