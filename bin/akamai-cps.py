@@ -133,15 +133,18 @@ def cli():
 
     actions["create"] = create_sub_command(
         subparsers, "create",
-        "Create a new certificate, reading input from input.json file. "
-        "(Optionally, use --file to specify "
-        "location of inputfile)",
+        "Create a new certificate, reading input from input yaml file. "
+        "(Use --file to specify "
+        "name of inputfile)",
+        None,
         [{"name": "file",
-          "help": "Input filename to read certificate/enrollment details"}])
+          "help": "Input filename from templates folder to read certificate/enrollment details"},
+          {"name": "certtype",
+           "help": "One of values from DV-SAN, OV-SAN, OV-SINGLE, OV-WILDCARD"}])
 
     actions["update"] = create_sub_command(
         subparsers, "update",
-        "Update a certificate, reading input from input.json file. "
+        "Update a certificate, reading input from input yaml file. "
         "(Optionally, use --file to specify ",
         [{"name": "cn", "help": "Common Name of Certificate to update"}])
 
@@ -252,7 +255,7 @@ def setup(args):
     #contractId = 'M-1O66EMG'
     root_logger.info(
         '\nProcessing Enrollments under contract: ' + contractId)
-    enrollmentsPath = os.path.join('enrollments')
+    enrollmentsPath = os.path.join('setup')
     # Delete the groups folder before we start
     if os.path.exists(enrollmentsPath):
         shutil.rmtree(enrollmentsPath)
@@ -294,7 +297,7 @@ def show(args):
         root_logger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
     cn = args.cn
-    enrollmentsPath = os.path.join('enrollments')
+    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -313,7 +316,9 @@ def show(args):
                         session, enrollmentId)
                     if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
-                        root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                        yamlData = yaml.dump(enrollmentDetailsJson)
+                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                        root_logger.info(yamlData)
 
                         printableData = {}
                         printableData['validation'] = enrollmentDetailsJson['validationType']
@@ -373,7 +378,7 @@ def status(args):
         root_logger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
     cn = args.cn
-    enrollmentsPath = os.path.join('enrollments')
+    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -437,9 +442,11 @@ def status(args):
                 'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
-def listEnrollments(args):
-    cpsObject = cps(access_hostname)
-    contractId = 'M-1O66EMG'
+def list(args):
+    base_url, session = init_config(args.edgerc, args.section)
+    cpsObject = cps(base_url)
+    #contractId = 'M-1O66EMG'
+    contractId = '1-5C13O8'
     enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
     if enrollmentsResponse.status_code == 200:
         enrollmentsJson = enrollmentsResponse.json()
@@ -466,7 +473,7 @@ def listEnrollments(args):
         root_logger.info(table)
 
 def audit(args):
-    enrollmentsPath = os.path.join('enrollments')
+    enrollmentsPath = os.path.join('setup')
     if not os.path.exists('output'):
         os.makedirs('output')
     outputFile = os.path.join('output', 'CPSAudit.csv')
@@ -508,34 +515,57 @@ def audit(args):
                     root_logger.debug(
                         'Reason: ' + json.dumps(certResponse.json(), indent=4))
 
-def create(args):
-    filPath = os.path.join('templates','ov_san.yml')
-    with open(filPath,'r') as yamlContentHandler:
-        yamlContent = yamlContentHandler.read()
-        certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
-        #print(certificateJsonContent)
+def validate(jsonContent, certType):
+    if certType == 'OV-SAN':
+        if jsonContent['validationType'] != 'ov':
+            return 'validationType must be set to ov'
+        if jsonContent['certificateType'] != 'san':
+            return 'certificateType must be set to san'
+        if jsonContent['ra'] != 'symantec':
+            return 'ra must be set to symantec'
+    return '0'
 
-    '''with open('input.json','r') as fileHandler:
-        certificateContent = fileHandler.read()
-        certificateJsonContent = json.dumps(json.loads(certificateContent))'''
-    base_url, session = init_config(args.edgerc, args.section)
-    cpsObject = cps(base_url)
-    contractId = '1-5C13O8'
-    createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
-    if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
-        root_logger.info('FAIL: ')
-        root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
-        root_logger.info(createEnrollmentResponse.json()['title'] + ' and ' + createEnrollmentResponse.json()['detail'])
-    else:
-        root_logger.info('Successfully created Enrollment. \n\nRunning setup again to update your local cache')
-        setup(args)
+def create(args):
+    certType = args.certtype
+    fileName = args.file
+    filePath = os.path.join('templates',fileName)
+    try:
+        #Read from YAML file and load convert it to JSON.
+        with open(filePath,'r') as yamlContentHandler:
+            yamlContent = yamlContentHandler.read()
+        certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
+        jsonContent = json.loads(certificateJsonContent)
+        #Validating the template data
+        validationResult = validate(jsonContent, certType)
+        if validationResult != '0':
+            root_logger.info('\nThere are validation errors. ' + validationResult + '\n')
+            exit(1)
+        #Below 3 lines read content from Json file, this is commented out for now.
+        '''with open('input.json','r') as fileHandler:
+            certificateContent = fileHandler.read()
+            certificateJsonContent = json.dumps(json.loads(certificateContent))'''
+        base_url, session = init_config(args.edgerc, args.section)
+        cpsObject = cps(base_url)
+        contractId = '1-5C13O8'
+        #Send a request to create enrollment using wrapper function
+        createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
+        if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
+            root_logger.info('FAIL: ')
+            root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
+            root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
+        else:
+            root_logger.info('Successfully created Enrollment. \n\nRunning setup again to update your local cache')
+            setup(args)
+    except FileNotFoundError:
+        root_logger.info('\nFilename: ' + fileName + ' is not found in templates folder. Exiting.\n')
+        exit(1)
 
 def update(args):
     if not args.cn:
         root_logger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
     cn = args.cn
-    enrollmentsPath = os.path.join('enrollments')
+    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -564,7 +594,7 @@ def cancel(args):
         root_logger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
     cn = args.cn
-    enrollmentsPath = os.path.join('enrollments')
+    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -636,7 +666,7 @@ def cancel(args):
             exit(-1)
 
 def confirm_setup(args):
-    policies_dir = os.path.join(get_cache_dir(), 'enrollments')
+    policies_dir = os.path.join(get_cache_dir(), 'setup')
 
     if not os.access(policies_dir, os.W_OK):
         print(
