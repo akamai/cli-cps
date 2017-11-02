@@ -39,7 +39,7 @@ PACKAGE_VERSION = "0.1.0"
 # Setup logging
 if not os.path.exists('logs'):
     os.makedirs('logs')
-log_file = os.path.join('logs', 'visitor-prioritization.log')
+log_file = os.path.join('logs', 'cps.log')
 
 # Set the format of logging in console and file separately
 log_formatter = logging.Formatter(
@@ -126,6 +126,11 @@ def cli():
         "Initial setup to download all necessary policy "
         "information")
 
+    actions["audit"] = create_sub_command(
+        subparsers, "audit", "A report of all enrollments in CSV format",
+        None,
+        [{"name": "outputfile", "help": "Name of the outputfile to be saved to"}])
+
     actions["show"] = create_sub_command(
         subparsers, "show",
         "Display details of Certificate",
@@ -136,17 +141,22 @@ def cli():
         "Create a new certificate, reading input from input yaml file. "
         "(Use --file to specify "
         "name of inputfile)",
-        None,
+        [{"name": "force",
+           "help": "No value"}],
         [{"name": "file",
-          "help": "Input filename from templates folder to read certificate/enrollment details"},
-          {"name": "certtype",
-           "help": "One of values from DV-SAN, OV-SAN, OV-SINGLE, OV-WILDCARD"}])
+          "help": "Input filename from templates folder to read certificate/enrollment details"}])
 
     actions["update"] = create_sub_command(
         subparsers, "update",
         "Update a certificate, reading input from input yaml file. "
         "(Optionally, use --file to specify ",
         [{"name": "cn", "help": "Common Name of Certificate to update"}])
+
+    actions["download"] = create_sub_command(
+        subparsers, "download", "Download Enrollment data in yaml format to a file",
+        [{"name": "format", "help": "Accepted values are json OR yaml"}],
+        [{"name": "cn", "help": "Common Name of certificate"},
+         {"name": "outputfile", "help": "Name of the outputfile to be saved to"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an ongoing Enrollment",
@@ -251,6 +261,14 @@ def setup(args):
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     enrollmentOutput = []
+    '''    contractIds = cpsObject.getContracts(session)
+    if contractIds.status_code == 200:
+        root_logger.info(json.dumps(contractIds.json(), indent=4))
+    else:
+        root_logger.info('Unable to fetch contracts')
+        root_logger.info(json.dumps(contractIds.json(), indent=4))
+        exit()'''
+
     contractId = '1-5C13O8'
     #contractId = 'M-1O66EMG'
     root_logger.info(
@@ -317,53 +335,7 @@ def show(args):
                     if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
                         yamlData = yaml.dump(enrollmentDetailsJson)
-                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                        root_logger.info(yamlData)
-
-                        printableData = {}
-                        printableData['validation'] = enrollmentDetailsJson['validationType']
-                        printableData['cerificateType'] = enrollmentDetailsJson['certificateType']
-                        printableData['cA'] = 'Symantec'
-                        if 'sni' in enrollmentDetailsJson['networkConfiguration'] and enrollmentDetailsJson['networkConfiguration']['sni'] is not None:
-                            printableData['sniOnly'] = enrollmentDetailsJson['networkConfiguration']['sni']['dnsNames']
-                        else:
-                            printableData['sniOnly'] = 'Off'
-                        printableData['changeManagement'] = enrollmentDetailsJson['changeManagement']
-                        printableData['signatureAlgorithm'] = enrollmentDetailsJson['signatureAlgorithm']
-                        printData(['General'], printableData)
-
-                        printableData = {}
-                        printableData['commonName'] = enrollmentDetailsJson['csr']['cn']
-                        printableData['organization'] = enrollmentDetailsJson['org']['name']
-                        printableData['unit'] = enrollmentDetailsJson['csr']['ou']
-                        printableData['country'] = enrollmentDetailsJson['csr']['c']
-                        printableData['state'] = enrollmentDetailsJson['csr']['st']
-                        printableData['city'] = enrollmentDetailsJson['csr']['l']
-                        printData(['CertInfo'], printableData)
-
-                        printableData = {}
-                        printableData['name'] = enrollmentDetailsJson['org']['name']
-                        printableData['addressLineOne'] = enrollmentDetailsJson['org']['addressLineOne']
-                        printableData['addressLineTwo'] = enrollmentDetailsJson['org']['addressLineTwo']
-                        printableData['city'] = enrollmentDetailsJson['org']['city']
-                        printableData['region'] = enrollmentDetailsJson['org']['region']
-                        printableData['postalCode'] = enrollmentDetailsJson['org']['postalCode']
-                        printableData['country'] = enrollmentDetailsJson['org']['country']
-                        printableData['phone'] = enrollmentDetailsJson['org']['phone']
-                        printData(['CompanyInfo'], printableData)
-
-                        printableData = {}
-                        # Admin details
-                        printableData['firstName'] = enrollmentDetailsJson['adminContact']['firstName']
-                        printableData['lastName'] = enrollmentDetailsJson['adminContact']['lastName']
-                        printableData['phone'] = enrollmentDetailsJson['adminContact']['phone']
-                        printableData['email'] = enrollmentDetailsJson['adminContact']['email']
-                        # Tech details
-                        printableData['techFirstName'] = enrollmentDetailsJson['techContact']['firstName']
-                        printableData['techLastName'] = enrollmentDetailsJson['techContact']['lastName']
-                        printableData['techPhone'] = enrollmentDetailsJson['techContact']['phone']
-                        printableData['techEmail'] = enrollmentDetailsJson['techContact']['email']
-                        printData(['ContactInfo'], printableData)
+                        root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                     else:
                         root_logger.info(
                             'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
@@ -454,33 +426,45 @@ def list(args):
         totalEnrollments = len(enrollmentsJson['enrollments'])
         root_logger.info('Total of ' + str(totalEnrollments) +
                         ' enrollments are found.')
-        table = PrettyTable(['Enrollment ID', 'Common Name', 'Certificate Type', 'Validation Type',
-                            'Total number of SAN(s)'])
+        table = PrettyTable(['Common Name (SAN Count)', 'Enrollment ID', 'Validation Type', 'Certificate Type','Test on Staging', 'Pending Changes'])
 
         for everyEnrollment in enrollmentsJson['enrollments']:
             if 'csr' in everyEnrollment:
                 rowData = []
                 #print(json.dumps(everyEnrollment, indent = 4))
-                rowData.append(everyEnrollment['location'].split('/')[-1])
-                rowData.append(everyEnrollment['csr']['cn'])
-                rowData.append(everyEnrollment['certificateType'])
-                rowData.append(everyEnrollment['validationType'])
+                cn = everyEnrollment['csr']['cn']
                 if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
-                    rowData.append(str(len(everyEnrollment['csr']['sans'])))
+                    cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
                 else:
-                    rowData.append('NONE')
+                    pass
+                rowData.append(cn)
+                rowData.append(everyEnrollment['location'].split('/')[-1])
+                rowData.append(everyEnrollment['validationType'])
+                rowData.append(everyEnrollment['certificateType'])
+                if 'changeManagement' in everyEnrollment:
+                    if everyEnrollment['changeManagement'] is True:
+                        rowData.append('Yes')
+                    else:
+                        rowData.append('No')
+                if 'pendingChanges' in everyEnrollment:
+                    if len(everyEnrollment['pendingChanges']) > 0:
+                        rowData.append('Yes')
+                    else:
+                        rowData.append('No')
             table.add_row(rowData)
         root_logger.info(table)
 
 def audit(args):
+    output_file_name = args.outputfile
     enrollmentsPath = os.path.join('setup')
     if not os.path.exists('output'):
         os.makedirs('output')
-    outputFile = os.path.join('output', 'CPSAudit.csv')
-    with open(os.path.join('output', 'CPSAudit.csv'), 'w') as fileHandler:
+    outputFile = os.path.join('output', output_file_name)
+    with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
             'Enrollment ID,CN,SAN(S),Status,Expiration,Validation,Type,Contact\n')
-    cpsObject = cps(access_hostname)
+    base_url, session = init_config(args.edgerc, args.section)
+    cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
         localEnrollmentsFile = 'enrollments.json'
         if localEnrollmentsFile in files:
@@ -509,7 +493,7 @@ def audit(args):
                                           + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
                 else:
                     root_logger.info(
-                        'Unable to fetch Enrollment/Certificate details for enrollmentId: ' + str(enrollmentId))
+                        'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
                     root_logger.debug(
@@ -526,7 +510,7 @@ def validate(jsonContent, certType):
     return '0'
 
 def create(args):
-    certType = args.certtype
+    force = args.force
     fileName = args.file
     filePath = os.path.join('templates',fileName)
     try:
@@ -534,30 +518,41 @@ def create(args):
         with open(filePath,'r') as yamlContentHandler:
             yamlContent = yamlContentHandler.read()
         certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
-        jsonContent = json.loads(certificateJsonContent)
-        #Validating the template data
-        validationResult = validate(jsonContent, certType)
-        if validationResult != '0':
-            root_logger.info('\nThere are validation errors. ' + validationResult + '\n')
-            exit(1)
-        #Below 3 lines read content from Json file, this is commented out for now.
-        '''with open('input.json','r') as fileHandler:
-            certificateContent = fileHandler.read()
-            certificateJsonContent = json.dumps(json.loads(certificateContent))'''
-        base_url, session = init_config(args.edgerc, args.section)
-        cpsObject = cps(base_url)
-        contractId = '1-5C13O8'
-        #Send a request to create enrollment using wrapper function
-        createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
-        if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
-            root_logger.info('FAIL: ')
-            root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
-            root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
+        certificateContent = yaml.load(yamlContent)
+        if not force:
+            root_logger.info('\nYou are about to create a new ' + certificateContent['ra'] +
+            ': ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] +
+            ' enrollment for\nCommon Name (CN) = ' + certificateContent['csr']['cn'] +
+            '. Do you wish to continue (Y/N)')
+            decision = input()
         else:
-            root_logger.info('Successfully created Enrollment. \n\nRunning setup again to update your local cache')
-            setup(args)
+            decision = 'y'
+
+        if decision == 'Y' or decision == 'y':
+            root_logger.info('Uploading certificate information and creating one..')
+            base_url, session = init_config(args.edgerc, args.section)
+            cpsObject = cps(base_url)
+            contractId = '1-5C13O8'
+            #Send a request to create enrollment using wrapper function
+            createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
+            if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
+                root_logger.info('\nFAILED to create certificate: ')
+                root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
+                root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
+            else:
+                root_logger.info('Successfully created Enrollment. \n\nRunning setup again to update your local cache')
+                setup(args)
+        else:
+            root_logger.info('Exiting the program')
+            exit(0)
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName + ' is not found in templates folder. Exiting.\n')
+        exit(1)
+    except KeyError as missingKey:
+        #This is caught if --force is not used and file is validated
+        root_logger.info('\n' + str(missingKey) + ' is not found in input file and is mandatory.\n')
+        root_logger.info('Error: Input yaml file does not seem valid. Please check file format\n')
+
         exit(1)
 
 def update(args):
@@ -664,6 +659,51 @@ def cancel(args):
             root_logger.info(
                 'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
+
+def download(args):
+    outputfile = args.outputfile
+    format = args.format
+    if not outputfile:
+        root_logger.info('Output file not specified.')
+        exit(-1)
+    if not args.cn:
+        root_logger.info('Hostname/CN/SAN is mandatory')
+        exit(-1)
+    cn = args.cn
+    enrollmentsPath = os.path.join('setup')
+    base_url, session = init_config(args.edgerc, args.section)
+    cpsObject = cps(base_url)
+    for root, dirs, files in os.walk(enrollmentsPath):
+        localEnrollmentsFile = 'enrollments.json'
+        if localEnrollmentsFile in files:
+            with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+                enrollmentsStringContent = enrollmentsFileHandler.read()
+            enrollmentsJsonContent = json.loads(enrollmentsStringContent)
+            for everyEnrollmentInfo in enrollmentsJsonContent:
+                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                    enrollmentId = everyEnrollmentInfo['enrollmentId']
+                    root_logger.info('\nFetching details of ' + cn +
+                                    ' with enrollmentId: ' + str(enrollmentId))
+                    enrollmentDetails = cpsObject.getEnrollment(
+                        session, enrollmentId)
+                    if enrollmentDetails.status_code == 200:
+                        if format == 'yaml':
+                            enrollmentDetailsJson = enrollmentDetails.json()
+                            Data = yaml.dump(enrollmentDetailsJson)
+                        else:
+                            Data = json.dumps(enrollmentDetails.json(), indent=4)
+
+                        with open(os.path.join('templates', outputfile),'w') as outputfile_handler:
+                            outputfile_handler.write(Data)
+                        root_logger.info('\nOutput saved in ' + outputfile + ' under templates directory.\n')
+                    else:
+                        root_logger.info(
+                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                        exit(-1)
+                else:
+                    root_logger.info(
+                        '\nUnable to find enrollments.json file. Try to run setup.\n')
+                    exit(-1)
 
 def confirm_setup(args):
     policies_dir = os.path.join(get_cache_dir(), 'setup')
