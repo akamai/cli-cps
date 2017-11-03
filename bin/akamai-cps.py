@@ -255,8 +255,8 @@ def printData(title, data):
 
 
 def setup(args):
-    root_logger.info('Setting up required files.... please wait')
-    root_logger.info('\nDetermining the contracts available.')
+    #root_logger.info('Setting up required files.... please wait')
+    #root_logger.info('\nDetermining the contracts available.')
     # Create the wrapper object to make calls
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
@@ -286,8 +286,7 @@ def setup(args):
             enrollmentsJson = enrollmentsResponse.json()
             # Find number of groups using len function
             totalEnrollments = len(enrollmentsJson['enrollments'])
-            root_logger.info(
-                'Total of ' + str(totalEnrollments) + ' enrollments are found.')
+            root_logger.info(str(totalEnrollments) + ' total enrollments found.')
             for everyEnrollment in enrollmentsJson['enrollments']:
                 enrollmentInfo = {}
                 if 'csr' in everyEnrollment:
@@ -424,9 +423,9 @@ def list(args):
         enrollmentsJson = enrollmentsResponse.json()
         # Find number of groups using len function
         totalEnrollments = len(enrollmentsJson['enrollments'])
-        root_logger.info('Total of ' + str(totalEnrollments) +
-                        ' enrollments are found.')
-        table = PrettyTable(['Common Name (SAN Count)', 'Enrollment ID', 'Validation Type', 'Certificate Type','Test on Staging', 'Pending Changes'])
+        root_logger.info(str(totalEnrollments) + ' total enrollments found.')
+        table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','Test on Staging First', 'In-Progress'])
+        table.align ="l"
 
         for everyEnrollment in enrollmentsJson['enrollments']:
             if 'csr' in everyEnrollment:
@@ -434,13 +433,17 @@ def list(args):
                 #print(json.dumps(everyEnrollment, indent = 4))
                 cn = everyEnrollment['csr']['cn']
                 if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
-                    cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
+                    if (len(everyEnrollment['csr']['sans']) > 1):
+                        cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
                 else:
                     pass
-                rowData.append(cn)
                 rowData.append(everyEnrollment['location'].split('/')[-1])
-                rowData.append(everyEnrollment['validationType'])
-                rowData.append(everyEnrollment['certificateType'])
+                rowData.append(cn)
+                certificateType = everyEnrollment['validationType']
+                if certificateType != 'third-party':
+                    certificateType = everyEnrollment['validationType'] + ' ' + everyEnrollment['certificateType']
+                rowData.append(certificateType)
+                #rowData.append(everyEnrollment['certificateType'])
                 if 'changeManagement' in everyEnrollment:
                     if everyEnrollment['changeManagement'] is True:
                         rowData.append('Yes')
@@ -520,16 +523,14 @@ def create(args):
         certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
         certificateContent = yaml.load(yamlContent)
         if not force:
-            root_logger.info('\nYou are about to create a new ' + certificateContent['ra'] +
-            ': ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] +
-            ' enrollment for\nCommon Name (CN) = ' + certificateContent['csr']['cn'] +
-            '. Do you wish to continue (Y/N)')
+            root_logger.info('\nYou are about to create a new ' + certificateContent['ra'] + ' ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] + ' enrollment for Common Name (CN) = ' + certificateContent['csr']['cn'] +
+            '\nDo you wish to continue (Y/N)?')
             decision = input()
         else:
             decision = 'y'
 
         if decision == 'Y' or decision == 'y':
-            root_logger.info('Uploading certificate information and creating one..')
+            root_logger.info('Uploading certificate information and creating enrollment..')
             base_url, session = init_config(args.edgerc, args.section)
             cpsObject = cps(base_url)
             contractId = '1-5C13O8'
@@ -540,10 +541,10 @@ def create(args):
                 root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
                 root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
             else:
-                root_logger.info('Successfully created Enrollment. \n\nRunning setup again to update your local cache')
+                root_logger.info('Successfully created Enrollment...')
                 setup(args)
         else:
-            root_logger.info('Exiting the program')
+            root_logger.info('Exiting...')
             exit(0)
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName + ' is not found in templates folder. Exiting.\n')
@@ -551,7 +552,7 @@ def create(args):
     except KeyError as missingKey:
         #This is caught if --force is not used and file is validated
         root_logger.info('\n' + str(missingKey) + ' is not found in input file and is mandatory.\n')
-        root_logger.info('Error: Input yaml file does not seem valid. Please check file format\n')
+        root_logger.info('Error: Input yaml file does not seem valid. Please check file format.\n')
 
         exit(1)
 
