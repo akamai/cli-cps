@@ -33,6 +33,9 @@ from prettytable import PrettyTable
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
+import jsonpatch
+import datetime
+
 
 PACKAGE_VERSION = "0.1.0"
 
@@ -128,7 +131,6 @@ def cli():
 
     actions["audit"] = create_sub_command(
         subparsers, "audit", "A report of all enrollments in CSV format",
-        None,
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"}])
 
     actions["show"] = create_sub_command(
@@ -150,7 +152,10 @@ def cli():
         subparsers, "update",
         "Update a certificate, reading input from input yaml file. "
         "(Optionally, use --file to specify ",
-        [{"name": "cn", "help": "Common Name of Certificate to update"}])
+        [{"name": "force", "help": "Skip the stdout display and user confirmation"}],
+        [{"name": "cn", "help": "Common Name of Certificate to update"},
+         {"name": "file",
+          "help": "Input filename from templates folder to read certificate/enrollment details"}])
 
     actions["download"] = create_sub_command(
         subparsers, "download", "Download Enrollment data in yaml format to a file",
@@ -212,10 +217,17 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            optional.add_argument("--" + name,
-                                  required=False,
-                                  **arg,
-                                  )
+            if name == 'force':
+                optional.add_argument(
+                    "--" + name,
+                    required=False,
+                    **arg,
+                    action="store_true")
+            else:
+                optional.add_argument("--" + name,
+                                      required=False,
+                                      **arg,
+                                      )
 
     optional.add_argument(
         "--edgerc",
@@ -458,7 +470,11 @@ def list(args):
         root_logger.info(table)
 
 def audit(args):
-    output_file_name = args.outputfile
+    if args.outputfile:
+        output_file_name = args.outputfile
+    else:
+        timestamp = '{:%Y_%m_%d__%H_%M_%S}'.format(datetime.datetime.now())
+        output_file_name = 'CPSAudit_' + str(timestamp) + '.csv'
     enrollmentsPath = os.path.join('setup')
     if not os.path.exists('output'):
         os.makedirs('output')
@@ -473,7 +489,7 @@ def audit(args):
         if localEnrollmentsFile in files:
             with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
+            root_logger.info('\nGenerating a CPS audit report. Output file will be available at ' + outputFile)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 enrollmentId = everyEnrollmentInfo['enrollmentId']
@@ -491,11 +507,11 @@ def audit(args):
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         Status = 'PENDING'
-                    with open(os.path.join('output', 'CPSAudit.csv'), 'a') as fileHandler:
+                    with open(outputFile, 'a') as fileHandler:
                         fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType']
                                           + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
                 else:
-                    root_logger.info(
+                    root_logger.debug(
                         'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
@@ -557,6 +573,8 @@ def create(args):
         exit(1)
 
 def update(args):
+    force = args.force
+    fileName = args.file
     if not args.cn:
         root_logger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
@@ -576,14 +594,69 @@ def update(args):
                     enrollmentId = everyEnrollmentInfo['enrollmentId']
                     root_logger.info('Fetching details of ' + cn +
                                     ' with enrollmentId: ' + str(enrollmentId))
-                    with open(os.path.join('input.json'), mode='r') as inputFileHandler:
-                        certificateContent = inputFileHandler.read()
-                    # root_logger.info(policyStringContent)
-                    updateJsonContent = json.dumps(json.loads(certificateContent))
-                    updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
-                    if updateEnrollmentResponse.status_code == 200 or 202:
-                        root_logger.info('Successfully updated the enrollment.')
-                        root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
+                    with open(os.path.join('templates',fileName), mode='r') as inputFileHandler:
+                        yamlContent = inputFileHandler.read()
+                    jsonFormattedContent = yaml.load(yamlContent)
+                    updateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
+                    certificateContent = yaml.load(yamlContent)
+
+                    if not force:
+                        root_logger.info('\nYou are about to update ' + certificateContent['ra'] +
+                        ': ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] +
+                        ' enrollment for\nCommon Name (CN) = ' + certificateContent['csr']['cn'] +
+                        '. Do you wish to continue (Y/N)')
+                        decision = input()
+                        if decision == 'Y' or decision == 'y':
+                            #compare the data
+                            root_logger.info('Fetching details of ' + cn +
+                                            ' with enrollmentId: ' + str(enrollmentId))
+                            enrollmentDetails = cpsObject.getEnrollment(
+                                session, enrollmentId)
+                            if enrollmentDetails.status_code == 200:
+                                enrollmentDetailsJson = enrollmentDetails.json()
+                                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                                #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
+                                listOfPatches = jsonpatch.JsonPatch.from_diff(jsonFormattedContent, enrollmentDetailsJson)
+                                #root_logger.info(patch)
+                                table = PrettyTable(['Action', 'Attribute', 'Existing Value'])
+                                table.align ="l"
+                                for everyPatch in listOfPatches:
+                                    rowData = []
+                                    action = everyPatch['op']
+                                    if action == 'replace':
+                                        action = 'Updated'
+                                    rowData.append(action)
+                                    attribute = everyPatch['path']
+                                    attribute = attribute.replace('/','-->')
+                                    attribute = attribute.replace('-->','',1)
+                                    rowData.append(attribute)
+                                    attributeValue = everyPatch['value']
+                                    rowData.append(attributeValue)
+                                    if action != 'move':
+                                        if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
+                                        and 'location' not in attribute:
+                                            table.add_row(rowData)
+                                    #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
+                                root_logger.info(table)
+
+                            else:
+                                root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
+                                exit(1)
+                        else:
+                            #User pressed N so just go ahead, we will exit program down below
+                            pass
+                    #User passed --force so just go ahead by selecting Y
+                    else:
+                        decision = 'y'
+                    root_logger.info('\nProceeding to update the enrollment.\n')
+                    if decision == 'y' or decision == 'Y':
+                        updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
+                        if updateEnrollmentResponse.status_code == 200 or 202:
+                            root_logger.info('Successfully updated the enrollment.')
+                            root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
+                    else:
+                        root_logger.info('Exiting the program')
+                        exit(0)
 
 def cancel(args):
     if not args.cn:
@@ -701,10 +774,10 @@ def download(args):
                         root_logger.info(
                             'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
                         exit(-1)
-                else:
-                    root_logger.info(
-                        '\nUnable to find enrollments.json file. Try to run setup.\n')
-                    exit(-1)
+        else:
+            root_logger.info(
+                '\nUnable to find enrollments.json file. Try to run setup.\n')
+            exit(-1)
 
 def confirm_setup(args):
     policies_dir = os.path.join(get_cache_dir(), 'setup')
