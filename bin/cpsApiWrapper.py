@@ -196,3 +196,24 @@ class cps(object):
             str(enrollmentId) + '/deployments/production'
         getCertificateResponse = session.get(getCertificateUrl, headers=headers)
         return getCertificateResponse
+
+    def customCall(self, session, endpoint):
+        """
+        Function to Get a Certificate
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        customCallRespose : customCallRespose
+            (customCallRespose) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.csr.v1+json"
+        }
+        customUrl = 'https://' + self.access_hostname + endpoint
+        customResponse = session.get(customUrl, headers=headers)
+        return customResponse
