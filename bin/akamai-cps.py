@@ -390,10 +390,17 @@ def status(args):
                                 enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
                             changeStatusResponse = cpsObject.getChangeStatus(
                                 session, enrollmentId, changeId)
-                            #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                            root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                             if changeStatusResponse.status_code == 200:
                                 changeStatusResponseJson = changeStatusResponse.json()
-                                title = ['STATUS']
+                                if len(changeStatusResponseJson['allowedInput']) > 0:
+                                    for everyInput in changeStatusResponseJson['allowedInput']:
+                                        info = everyInput['info']
+                                        customResponse = cpsObject.customCall(session, info)
+                                        print('\n\n')
+                                        root_logger.info(json.dumps(customResponse.json(), indent=4))
+
+                                '''title = ['STATUS']
                                 title.append('DESCRIPTION')
                                 title.append('ERROR')
                                 table = PrettyTable(title)
@@ -406,7 +413,7 @@ def status(args):
                                     table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
                                     table_row_data.append('No Error')
                                     table.add_row(table_row_data)
-                                root_logger.info(table)
+                                root_logger.info(table)'''
                             else:
                                 root_logger.info(
                                     'Unable to determine change status.')
