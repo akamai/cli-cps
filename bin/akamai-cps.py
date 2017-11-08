@@ -488,7 +488,7 @@ def audit(args):
     outputFile = os.path.join('audit', output_file_name)
     with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
-            'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration,Validation,Type,Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone\n')
+            'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone\n')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -507,13 +507,23 @@ def audit(args):
                 root_logger.info('Processing ' + str(count) + ' of ' + str(enrollmentTotal) + ': Common Name (CN): ' + commonName)
                 enrollmentDetails = cpsObject.getEnrollment(
                     session, enrollmentId)
-                certResponse = cpsObject.getCertificate(session, enrollmentId)
 
-                if enrollmentDetails.status_code == 200 and certResponse.status_code == 200:
+
+                if enrollmentDetails.status_code == 200:
                     enrollmentDetailsJson = enrollmentDetails.json()
                     # print(json.dumps(enrollmentDetails.json(),indent=4))
-                    cert = x509.load_pem_x509_certificate(
-                        certResponse.json()['certificate'].encode(), default_backend())
+                    certResponse = cpsObject.getCertificate(session, enrollmentId)
+                    expiration = ''
+                    if certResponse.status_code == 200:
+                        cert = x509.load_pem_x509_certificate(certResponse.json()['certificate'].encode(), default_backend())
+                        expiration = str(cert.not_valid_after)
+                    else:
+                        root_logger.debug(
+                            'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                    sanCount = len(enrollmentDetailsJson['csr']['sans'])
+                    sanList = str(enrollmentDetailsJson['csr']['sans']).replace(',', ' ')
+                    if sanCount <= 1:
+                            sanList = ''
                     changeManagement = str(enrollmentDetailsJson['changeManagement'])
                     if changeManagement.lower() == 'true':
                         changeManagement = 'yes'
@@ -527,7 +537,7 @@ def audit(args):
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         Status = 'IN-PROGRESS'
                     with open(outputFile, 'a') as fileHandler:
-                        fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType']
+                        fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + sanList + ', ' + Status + ', ' + expiration + ', ' + enrollmentDetailsJson['validationType']
                                           + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + changeManagement + ',' + adminName + ',' + enrollmentDetailsJson['adminContact']['email'] + ', ' + enrollmentDetailsJson['adminContact']['phone']
                                           + ', ' + techName + ',' + enrollmentDetailsJson['techContact']['email'] + ', ' + enrollmentDetailsJson['techContact']['phone'] + '\n')
                 else:
@@ -535,8 +545,6 @@ def audit(args):
                         'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
-                    root_logger.debug(
-                        'Reason: ' + json.dumps(certResponse.json(), indent=4))
             root_logger.info('\nDone! Output file written here: ' + outputFile)
 def validate(jsonContent, certType):
     if certType == 'OV-SAN':
