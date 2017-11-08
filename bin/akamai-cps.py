@@ -521,7 +521,7 @@ def audit(args):
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
                     sanCount = len(enrollmentDetailsJson['csr']['sans'])
-                    sanList = str(enrollmentDetailsJson['csr']['sans']).replace(',', ' ')
+                    sanList = str(enrollmentDetailsJson['csr']['sans']).replace(',','').replace('[','').replace(']','').replace("'",'')
                     if sanCount <= 1:
                             sanList = ''
                     changeManagement = str(enrollmentDetailsJson['changeManagement'])
