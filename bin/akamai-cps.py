@@ -483,12 +483,12 @@ def audit(args):
         timestamp = '{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now())
         output_file_name = 'CPSAudit_' + str(timestamp) + '.csv'
     enrollmentsPath = os.path.join('setup')
-    if not os.path.exists('output'):
-        os.makedirs('output')
-    outputFile = os.path.join('output', output_file_name)
+    if not os.path.exists('audit'):
+        os.makedirs('audit')
+    outputFile = os.path.join('audit', output_file_name)
     with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
-            'Enrollment ID,CN,SAN(S),Status,Expiration,Validation,Type,Contact\n')
+            'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration,Validation,Type,Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone\n')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -496,10 +496,15 @@ def audit(args):
         if localEnrollmentsFile in files:
             with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
-            root_logger.info('\nGenerating a CPS audit report. Output file will be available at ' + outputFile)
+            root_logger.info('\nGenerating CPS audit file...')
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
+            enrollmentTotal = len(enrollmentsJsonContent)
+            count = 0
             for everyEnrollmentInfo in enrollmentsJsonContent:
+                count = count + 1
                 enrollmentId = everyEnrollmentInfo['enrollmentId']
+                commonName = everyEnrollmentInfo['cn']
+                root_logger.info('Processing ' + str(count) + ' of ' + str(enrollmentTotal) + ': Common Name (CN): ' + commonName)
                 enrollmentDetails = cpsObject.getEnrollment(
                     session, enrollmentId)
                 certResponse = cpsObject.getCertificate(session, enrollmentId)
@@ -509,14 +514,22 @@ def audit(args):
                     # print(json.dumps(enrollmentDetails.json(),indent=4))
                     cert = x509.load_pem_x509_certificate(
                         certResponse.json()['certificate'].encode(), default_backend())
+                    changeManagement = str(enrollmentDetailsJson['changeManagement'])
+                    if changeManagement.lower() == 'true':
+                        changeManagement = 'yes'
+                    else:
+                        changeManagement = 'no'
                     Status = 'UNKNOWN'
+                    adminName = enrollmentDetailsJson['adminContact']['firstName'] + ' ' + enrollmentDetailsJson['adminContact']['lastName']
+                    techName = enrollmentDetailsJson['techContact']['firstName'] + ' ' + enrollmentDetailsJson['techContact']['lastName']
                     if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         Status = 'IN-PROGRESS'
                     with open(outputFile, 'a') as fileHandler:
                         fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType']
-                                          + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
+                                          + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + changeManagement + ',' + adminName + ',' + enrollmentDetailsJson['adminContact']['email'] + ', ' + enrollmentDetailsJson['adminContact']['phone']
+                                          + ', ' + techName + ',' + enrollmentDetailsJson['techContact']['email'] + ', ' + enrollmentDetailsJson['techContact']['phone'] + '\n')
                 else:
                     root_logger.debug(
                         'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
@@ -524,7 +537,7 @@ def audit(args):
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
                     root_logger.debug(
                         'Reason: ' + json.dumps(certResponse.json(), indent=4))
-
+            root_logger.info('\nDone! Output file written here: ' + outputFile)
 def validate(jsonContent, certType):
     if certType == 'OV-SAN':
         if jsonContent['validationType'] != 'ov':
