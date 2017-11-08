@@ -480,7 +480,7 @@ def audit(args):
     if args.outputfile:
         output_file_name = args.outputfile
     else:
-        timestamp = '{:%Y_%m_%d__%H_%M_%S}'.format(datetime.datetime.now())
+        timestamp = '{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now())
         output_file_name = 'CPSAudit_' + str(timestamp) + '.csv'
     enrollmentsPath = os.path.join('setup')
     if not os.path.exists('output'):
@@ -513,7 +513,7 @@ def audit(args):
                     if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                        Status = 'PENDING'
+                        Status = 'IN-PROGRESS'
                     with open(outputFile, 'a') as fileHandler:
                         fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + str(enrollmentDetailsJson['csr']['sans']).replace(',', ' | ') + ', ' + Status + ', ' + str(cert.not_valid_after) + ', ' + enrollmentDetailsJson['validationType']
                                           + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + enrollmentDetailsJson['adminContact']['email'] + '\n')
