@@ -27,98 +27,79 @@ Main program that wraps this functionality in a command line utility:
 Does a one time download of CPS Enrollment IDs and stores them in /setup folder for faster local retrieval. This command can be run anytime and will refresh the /setup folder based on the current list of policies.
 
 ```bash
-%  akamai-cps setup
+%  akamai cps setup
 ```
 
 ### list
-List current Visitor Prioritization Cloudlet policy names  
+List Enrollments currently enrolled in akamai CPS
 
 ```bash
-%  akamai-cps list
+%  akamai cps list
 ```
 
 ### show
-Get specific details for a policy name. Available information include configurations that reference that policy, current version numbers on Akamai staging and production, version history, and current rule settings.
+Get specific details for a enrollment. Available information include the complete JSON data as of now.
 
 ```bash
-%  akamai-cps -show --cn demo.devops.com
+%  akamai cps show --cn demo.devops.com
+```
+
+### create
+Create a new certificate request.
+
+```bash
+%  akamai cps create --file ./templates/ov_san.yml
 ```
 
 The flags of interest for create are:
 
 ```
--policyName <policyName>    Specified Visitor Prioritization Cloudlet policy name
--version <version>          Specific version number for that policy name (optional)
--fromVersion <fromVersion>  If -version is not specified, list policy version details starting from -fromVersion value (optional)
--verbose                    If -version is specified, add -verbose to get full rule details including url paths and match criteria (optional)
+--file <value>          Absolute or relative path of input file in YAML/YML format containing certificate details.
 
 ```
 
-### Throttle
-Make an actual change to percentage value for a specific rule name in the policy.
-
-```bash
-%  akamai-cloudlet-vp -throttle 50 -policyName samplePolicyName -rule 'ruleName' -network staging
-%  akamai-cloudlet-vp -throttle -1 -policyName samplePolicyName -rule 'ruleName' -network staging
-%  akamai-cloudlet-vp -throttle disabled -policyName samplePolicyName -rule 'ruleName' -network prod
-```
-
-The flags of interest for create are:
-
-```
--throttle <value>          Acceptable values are -1 (= All to Waiting Room), 0 <= 100, or 'disabled' (to disable rule)
--policyName <policyName>   Specified Visitor Prioritization Cloudlet policy name
--ruleName <ruleName>       Name of rule in policy that should be changed. Use single quotes ('') in case rule name has spaces. If multiple rules exist for the same name, all of them will be updated.
--network <network>         Either staging, prod, or production ; will make change based on latest version on that network
-
-```
-
-### Activate
+### update
 Activate a specified version for a policy to the appropriate network (staging or production)
 
 ```bash
-%  akamai-cloudlet-vp -activate -policyName samplePolicyName -version 87 -network staging
-%  akamai-cloudlet-vp -activate -policyName samplePolicyName -version 71 -network prod
+%  akamai cps update --cn test.edgekey.net --file ./yml/demo_devops_com.yml
+%  akamai cps update --cn test.edgekey.net --file ./yml/demo_devops_com.yml --force
 ```
 
-The flags of interest for create are:
+The flags of interest for update are:
 
 ```
--policyName <policyName>  Specified Visitor Prioritization Cloudlet policy name
--version <version>        Specific version number for that policy name
--network <network>        Either staging, prod, or production ; will make change based on latest version on that network
-
+--cn <common name>  Common name to be used to update the certificate/enrollment information in CPS.
+--file <value>        Absolute or relative path of input file in YAML/YML format containing updated certificate details.
+--force An optional argument which forces the update without displaying the changed information.
 ```
 
-### GenerateRulesJson
-Download the raw policy rules for a specified version in json format for local editing if desired.
+### download
+Download the enrollment detail into json or yml folder in json or yml format respectively.
 
 ```bash
-%  akamai-cloudlet-vp -generateRulesJson -policyName samplePolicyName -version 87
-%  akamai-cloudlet-vp -generateRulesJson -policyName samplePolicyName -version 71 -outputfile savefilename.json
+%  akamai cps download --cn demo.devops.com --format yml
+%  akamai cps download --cn demo.devops.com --format json
 ```
 
-The flags of interest for create are:
+The flags of interest for download are:
 
 ```
--policyName <policyName>  Specified Visitor Prioritization Cloudlet policy name
--version <version>        Specific version number for that policy name
--outputfile <filename>    Filename to be saved as in /rules folder (optional)
+--cn <common name>  Common name to be used to download the certificate/enrollment information from CPS.
+--format <json/yml/yaml>        Data format to be used to save the downloaded certificate information.
 
 ```
 
-### createVersion
-Download the raw policy rules for a specified version in json format for local editing if desired.
+### cancel
+Cancel the latest change requested to a Certificate.
 
 ```bash
-%  akamai-cloudlet-vp -createVersion -policyName samplePolicyName
-%  akamai-cloudlet-vp -createVersion -policyName samplePolicyName -file filename.json
+%  akamai cps cancel --cn demo.devops.com
 ```
 
-The flags of interest for create are:
+The flags of interest for cancel are:
 
 ```
--policyName <policyName>  Specified Visitor Prioritization Cloudlet policy name
--file <file>	          Filename of raw .json file to be used as policy details. This file should be in the /rules folder (optional)
+--cn <common name>  Common name to be used to cancel the certificate/enrollment information from CPS.
 
 ```
