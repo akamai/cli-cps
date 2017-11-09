@@ -159,9 +159,9 @@ def cli():
 
     actions["download"] = create_sub_command(
         subparsers, "download", "Download Enrollment data in yaml format to a file",
-        [{"name": "format", "help": "Accepted values are json OR yaml"}],
-        [{"name": "cn", "help": "Common Name of certificate"},
-         {"name": "outputfile", "help": "Name of the outputfile to be saved to"}])
+        [{"name": "outputfile", "help": "Name of the outputfile to be saved to"}],
+        [{"name": "format", "help": "Accepted values are json OR yaml"},
+         {"name": "cn", "help": "Common Name of certificate"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an ongoing Enrollment",
@@ -546,6 +546,7 @@ def audit(args):
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
             root_logger.info('\nDone! Output file written here: ' + outputFile)
+
 def validate(jsonContent, certType):
     if certType == 'OV-SAN':
         if jsonContent['validationType'] != 'ov':
@@ -559,7 +560,7 @@ def validate(jsonContent, certType):
 def create(args):
     force = args.force
     fileName = args.file
-    filePath = os.path.join('templates',fileName)
+    filePath = os.path.join(fileName)
     try:
         #Read from YAML file and load convert it to JSON.
         with open(filePath,'r') as yamlContentHandler:
@@ -617,16 +618,31 @@ def update(args):
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
+            enrollmentFound = 0
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                    enrollmentFound = 1
                     enrollmentId = everyEnrollmentInfo['enrollmentId']
                     root_logger.info('Fetching details of ' + cn +
                                     ' with enrollmentId: ' + str(enrollmentId))
-                    with open(os.path.join('templates',fileName), mode='r') as inputFileHandler:
-                        yamlContent = inputFileHandler.read()
-                    jsonFormattedContent = yaml.load(yamlContent)
-                    updateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
-                    certificateContent = yaml.load(yamlContent)
+                    try:
+                        with open(os.path.join(fileName), mode='r') as inputFileHandler:
+                            fileContent = inputFileHandler.read()
+                    except FileNotFoundError:
+                        root_logger.info('Unable to find file: ' + fileName)
+                        exit(0)
+
+                    if fileName.endswith('.yml'):
+                        jsonFormattedContent = yaml.load(fileContent)
+                        updateJsonContent = json.dumps(yaml.load(fileContent), indent = 2)
+                        certificateContent = yaml.load(fileContent)
+                    elif fileName.endswith('.json'):
+                        jsonFormattedContent = json.loads(fileContent)
+                        updateJsonContent = json.dumps(jsonFormattedContent, indent = 2)
+                        certificateContent = jsonFormattedContent
+                    else:
+                        root_logger.info('Unable to determine the file format. Filename should end with either .json or .yml')
+                        exit(-1)
 
                     if not force:
                         root_logger.info('\nYou are about to update ' + certificateContent['ra'] +
@@ -677,7 +693,7 @@ def update(args):
                     else:
                         decision = 'y'
                     root_logger.info('\nProceeding to update the enrollment.\n')
-                    if decision == 'y' or decision == 'Y':
+                    if decision == 'z' or decision == 'z':
                         updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
                         if updateEnrollmentResponse.status_code == 200 or 202:
                             root_logger.info('Successfully updated the enrollment.')
@@ -685,6 +701,17 @@ def update(args):
                     else:
                         root_logger.info('Exiting the program')
                         exit(0)
+                else:
+                    pass
+
+            if enrollmentFound:
+                pass
+            else:
+                root_logger.info('No such enrollement/CN found.')
+                exit(0)
+        else:
+            root_logger.info('No such input file found. Please ensure absolute file path is given.')
+            exit(-1)
 
 def cancel(args):
     if not args.cn:
@@ -763,15 +790,23 @@ def cancel(args):
             exit(-1)
 
 def download(args):
-    outputfile = args.outputfile
     format = args.format
-    if not outputfile:
-        root_logger.info('Output file not specified.')
+    if format != 'json' and format != 'yml' and format != 'yaml':
+        root_logger.info('Format can either be json or yaml or yml')
         exit(-1)
     if not args.cn:
         root_logger.info('Hostname/CN/SAN is mandatory')
         exit(-1)
     cn = args.cn
+
+    outputFolder = format
+    if args.outputfile:
+        outputfile = args.outputfile
+    else:
+        outputfile = cn.replace('.','_') + '.' + str(format)
+
+    if not os.path.exists(outputFolder):
+        os.makedirs(outputFolder)
     enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
@@ -789,15 +824,15 @@ def download(args):
                     enrollmentDetails = cpsObject.getEnrollment(
                         session, enrollmentId)
                     if enrollmentDetails.status_code == 200:
-                        if format == 'yaml':
+                        if format == 'yaml' or format == 'yml':
                             enrollmentDetailsJson = enrollmentDetails.json()
                             Data = yaml.dump(enrollmentDetailsJson)
                         else:
                             Data = json.dumps(enrollmentDetails.json(), indent=4)
 
-                        with open(os.path.join('templates', outputfile),'w') as outputfile_handler:
+                        with open(os.path.join(outputFolder, outputfile),'w') as outputfile_handler:
                             outputfile_handler.write(Data)
-                        root_logger.info('\nOutput saved in ' + outputfile + ' under templates directory.\n')
+                        root_logger.info('\nOutput saved in ' + os.path.join(outputFolder, outputfile) + '.\n')
                     else:
                         root_logger.info(
                             'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
