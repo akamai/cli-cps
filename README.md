@@ -27,24 +27,21 @@ Main program that wraps this functionality in a command line utility:
 Does a one time download of CPS Enrollment IDs and stores them in /setup folder for faster local retrieval. This command can be run anytime and will refresh the /setup folder based on the current list of policies.
 
 ```bash
-%  akamai-cloudlet-vp -setup
+%  akamai-cps setup
 ```
 
-### listPolicies
+### list
 List current Visitor Prioritization Cloudlet policy names  
 
 ```bash
-%  akamai-cloudlet-vp -listPolicies
+%  akamai-cps list
 ```
 
-### getDetail
+### show
 Get specific details for a policy name. Available information include configurations that reference that policy, current version numbers on Akamai staging and production, version history, and current rule settings.
 
 ```bash
-%  akamai-cloudlet-vp -getDetail -policyName samplePolicyName
-%  akamai-cloudlet-vp -getDetail -policyName samplePolicyName -fromVersion 37
-%  akamai-cloudlet-vp -getDetail -policyName samplePolicyName -version 66
-%  akamai-cloudlet-vp -getDetail -policyName samplePolicyName -version 66 -verbose
+%  akamai-cps -show --cn demo.devops.com
 ```
 
 The flags of interest for create are:
