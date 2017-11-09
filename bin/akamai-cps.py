@@ -439,46 +439,61 @@ def status(args):
 def list(args):
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
-    #contractId = 'M-1O66EMG'
-    contractId = '1-5C13O8'
-    enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
-    if enrollmentsResponse.status_code == 200:
-        enrollmentsJson = enrollmentsResponse.json()
-        # Find number of groups using len function
-        totalEnrollments = len(enrollmentsJson['enrollments'])
-        root_logger.info(str(totalEnrollments) + ' total enrollments found.')
-        table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','Test on Staging First', 'In-Progress'])
-        table.align ="l"
+    try:
+        #Fetch the contractId from setup/enrollments.json file
+        enrollmentsPath = os.path.join('setup')
+        for root, dirs, files in os.walk(enrollmentsPath):
+            localEnrollmentsFile = 'enrollments.json'
+            if localEnrollmentsFile in files:
+                with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+                    enrollmentsStringContent = enrollmentsFileHandler.read()
+                # root_logger.info(policyStringContent)
+                enrollmentsJsonContent = json.loads(enrollmentsStringContent)
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    contractId = everyEnrollmentInfo['contractId']
+                    break
+                
+        enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
+        if enrollmentsResponse.status_code == 200:
+            enrollmentsJson = enrollmentsResponse.json()
+            # Find number of groups using len function
+            totalEnrollments = len(enrollmentsJson['enrollments'])
+            root_logger.info(str(totalEnrollments) + ' total enrollments found.')
+            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','Test on Staging First', 'In-Progress'])
+            table.align ="l"
 
-        for everyEnrollment in enrollmentsJson['enrollments']:
-            if 'csr' in everyEnrollment:
-                rowData = []
-                #print(json.dumps(everyEnrollment, indent = 4))
-                cn = everyEnrollment['csr']['cn']
-                if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
-                    if (len(everyEnrollment['csr']['sans']) > 1):
-                        cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
-                else:
-                    pass
-                rowData.append(everyEnrollment['location'].split('/')[-1])
-                rowData.append(cn)
-                certificateType = everyEnrollment['validationType']
-                if certificateType != 'third-party':
-                    certificateType = everyEnrollment['validationType'] + ' ' + everyEnrollment['certificateType']
-                rowData.append(certificateType)
-                #rowData.append(everyEnrollment['certificateType'])
-                if 'changeManagement' in everyEnrollment:
-                    if everyEnrollment['changeManagement'] is True:
-                        rowData.append('Yes')
+            for everyEnrollment in enrollmentsJson['enrollments']:
+                if 'csr' in everyEnrollment:
+                    rowData = []
+                    #print(json.dumps(everyEnrollment, indent = 4))
+                    cn = everyEnrollment['csr']['cn']
+                    if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
+                        if (len(everyEnrollment['csr']['sans']) > 1):
+                            cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
                     else:
-                        rowData.append('No')
-                if 'pendingChanges' in everyEnrollment:
-                    if len(everyEnrollment['pendingChanges']) > 0:
-                        rowData.append('Yes')
-                    else:
-                        rowData.append('No')
-            table.add_row(rowData)
-        root_logger.info(table)
+                        pass
+                    rowData.append(everyEnrollment['location'].split('/')[-1])
+                    rowData.append(cn)
+                    certificateType = everyEnrollment['validationType']
+                    if certificateType != 'third-party':
+                        certificateType = everyEnrollment['validationType'] + ' ' + everyEnrollment['certificateType']
+                    rowData.append(certificateType)
+                    #rowData.append(everyEnrollment['certificateType'])
+                    if 'changeManagement' in everyEnrollment:
+                        if everyEnrollment['changeManagement'] is True:
+                            rowData.append('Yes')
+                        else:
+                            rowData.append('No')
+                    if 'pendingChanges' in everyEnrollment:
+                        if len(everyEnrollment['pendingChanges']) > 0:
+                            rowData.append('Yes')
+                        else:
+                            rowData.append('No')
+                table.add_row(rowData)
+            root_logger.info(table)
+    except FileNotFoundError:
+        root_logger.info('\nFilename: ' + fileName + ' is not found in templates folder. Exiting.\n')
+        exit(1)
 
 def audit(args):
     if args.outputfile:
@@ -595,7 +610,6 @@ def create(args):
             root_logger.info('Uploading certificate information and creating enrollment..')
             base_url, session = init_config(args.edgerc, args.section)
             cpsObject = cps(base_url)
-            contractId = '1-5C13O8'
             #Send a request to create enrollment using wrapper function
             createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
             if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
