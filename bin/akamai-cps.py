@@ -273,53 +273,57 @@ def setup(args):
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     enrollmentOutput = []
-    '''    contractIds = cpsObject.getContracts(session)
+
+    #Fetch the available contracts
+    contractIds = cpsObject.getContracts(session)
     if contractIds.status_code == 200:
-        root_logger.info(json.dumps(contractIds.json(), indent=4))
+        #root_logger.info(json.dumps(contractIds.json(), indent=4))
+        pass
     else:
         root_logger.info('Unable to fetch contracts')
         root_logger.info(json.dumps(contractIds.json(), indent=4))
-        exit()'''
+        exit(-1)
 
-    contractId = '1-5C13O8'
-    #contractId = 'M-1O66EMG'
-    root_logger.info(
-        '\nProcessing Enrollments under contract: ' + contractId)
     enrollmentsPath = os.path.join('setup')
     # Delete the groups folder before we start
     if os.path.exists(enrollmentsPath):
         shutil.rmtree(enrollmentsPath)
     if not os.path.exists(enrollmentsPath):
         os.makedirs(enrollmentsPath)
-    enrollmentsResponse = cpsObject.listEnrollments(
-        session, contractId)
-    if enrollmentsResponse.status_code == 200:
-        with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
-            enrollmentsJson = enrollmentsResponse.json()
-            # Find number of groups using len function
-            totalEnrollments = len(enrollmentsJson['enrollments'])
-            root_logger.info(str(totalEnrollments) + ' total enrollments found.')
-            for everyEnrollment in enrollmentsJson['enrollments']:
-                enrollmentInfo = {}
-                if 'csr' in everyEnrollment:
-                    #print(json.dumps(everyEnrollment, indent = 4))
-                    enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
-                    enrollmentInfo['contractId'] = contractId
-                    enrollmentInfo['enrollmentId'] = int(
-                        everyEnrollment['location'].split('/')[-1])
-                    enrollmentOutput.append(enrollmentInfo)
-            enrollmentsFile.write(
-                json.dumps(enrollmentOutput, indent=4))
-            root_logger.info('Enrollments details are stored in ' + '"' +
-                            os.path.join(enrollmentsPath, 'enrollments.json') + '"')
-    else:
+
+    for everyContract in contractIds.json()['contracts']['items']:
+        contractId = everyContract['contractId'].split('_')[1]
         root_logger.info(
-            'Unable to list Enrollments under contract: ' + contractId)
-        root_logger.debug(json.dumps(
-            enrollmentsResponse.json(), indent=4))
-        # Cannot exit here as there might be other contracts which might
-        # have enrollments
-        # exit(-1)
+            '\nProcessing Enrollments under contract: ' + contractId)
+        enrollmentsResponse = cpsObject.listEnrollments(
+            session, contractId)
+        if enrollmentsResponse.status_code == 200:
+            with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
+                enrollmentsJson = enrollmentsResponse.json()
+                # Find number of groups using len function
+                totalEnrollments = len(enrollmentsJson['enrollments'])
+                root_logger.info(str(totalEnrollments) + ' total enrollments found.')
+                for everyEnrollment in enrollmentsJson['enrollments']:
+                    enrollmentInfo = {}
+                    if 'csr' in everyEnrollment:
+                        #print(json.dumps(everyEnrollment, indent = 4))
+                        enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
+                        enrollmentInfo['contractId'] = contractId
+                        enrollmentInfo['enrollmentId'] = int(
+                            everyEnrollment['location'].split('/')[-1])
+                        enrollmentOutput.append(enrollmentInfo)
+                enrollmentsFile.write(
+                    json.dumps(enrollmentOutput, indent=4))
+                root_logger.info('Enrollments details are stored in ' + '"' +
+                                os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
+        else:
+            root_logger.info(
+                'Unable to list Enrollments under contract: ' + contractId)
+            root_logger.debug(json.dumps(
+                enrollmentsResponse.json(), indent=4))
+            # Cannot exit here as there might be other contracts which might
+            # have enrollments
+            # exit(-1)
 
 def show(args):
     if not args.cn:
@@ -561,7 +565,20 @@ def create(args):
     force = args.force
     fileName = args.file
     filePath = os.path.join(fileName)
+
     try:
+        #Fetch the contractId from setup/enrollments.json file
+        enrollmentsPath = os.path.join('setup')
+        for root, dirs, files in os.walk(enrollmentsPath):
+            localEnrollmentsFile = 'enrollments.json'
+            if localEnrollmentsFile in files:
+                with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+                    enrollmentsStringContent = enrollmentsFileHandler.read()
+                # root_logger.info(policyStringContent)
+                enrollmentsJsonContent = json.loads(enrollmentsStringContent)
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    contractId = everyEnrollmentInfo['contractId']
+                    break
         #Read from YAML file and load convert it to JSON.
         with open(filePath,'r') as yamlContentHandler:
             yamlContent = yamlContentHandler.read()
@@ -587,6 +604,7 @@ def create(args):
                 root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
             else:
                 root_logger.info('Successfully created Enrollment...')
+                root_logger.info('\nUpdating your local setup folder automatically..\n')
                 setup(args)
         else:
             root_logger.info('Exiting...')
@@ -661,10 +679,11 @@ def update(args):
                                 #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                                 #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
                                 listOfPatches = jsonpatch.JsonPatch.from_diff(jsonFormattedContent, enrollmentDetailsJson)
-                                #root_logger.info(patch)
-                                table = PrettyTable(['Action', 'Attribute', 'Existing Value'])
+                                #root_logger.info(listOfPatches)
+                                table = PrettyTable(['Action', 'Attribute', 'Existing Value in CPS'])
                                 table.align ="l"
                                 for everyPatch in listOfPatches:
+                                    #root_logger.info(everyPatch)
                                     rowData = []
                                     action = everyPatch['op']
                                     if action == 'replace':
@@ -674,13 +693,17 @@ def update(args):
                                     attribute = attribute.replace('/','-->')
                                     attribute = attribute.replace('-->','',1)
                                     rowData.append(attribute)
-                                    attributeValue = everyPatch['value']
+                                    if 'value' in everyPatch:
+                                        attributeValue = everyPatch['value']
+                                    else:
+                                        attributeValue = ''
                                     rowData.append(attributeValue)
                                     if action != 'move':
                                         if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
                                         and 'location' not in attribute:
                                             table.add_row(rowData)
                                     #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
+                                root_logger.info('\nFollowing are the differences \n')
                                 root_logger.info(table)
 
                             else:
@@ -693,6 +716,7 @@ def update(args):
                     else:
                         decision = 'y'
                     root_logger.info('\nProceeding to update the enrollment.\n')
+                    root_logger.info('\nTemporarily skipping the final UPDATE call\n')
                     if decision == 'z' or decision == 'z':
                         updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
                         if updateEnrollmentResponse.status_code == 200 or 202:
