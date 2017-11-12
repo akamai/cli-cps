@@ -303,19 +303,18 @@ def setup(args):
                 # Find number of groups using len function
                 totalEnrollments = len(enrollmentsJson['enrollments'])
                 root_logger.info(str(totalEnrollments) + ' total enrollments found.')
-                for everyEnrollment in enrollmentsJson['enrollments']:
-                    enrollmentInfo = {}
-                    if 'csr' in everyEnrollment:
-                        #print(json.dumps(everyEnrollment, indent = 4))
-                        enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
-                        enrollmentInfo['contractId'] = contractId
-                        enrollmentInfo['enrollmentId'] = int(
-                            everyEnrollment['location'].split('/')[-1])
-                        enrollmentOutput.append(enrollmentInfo)
-                enrollmentsFile.write(
-                    json.dumps(enrollmentOutput, indent=4))
-                root_logger.info('Enrollments details are stored in ' + '"' +
-                                os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
+                if (totalEnrollments > 0):
+                    for everyEnrollment in enrollmentsJson['enrollments']:
+                        enrollmentInfo = {}
+                        if 'csr' in everyEnrollment:
+                            #print(json.dumps(everyEnrollment, indent = 4))
+                            enrollmentInfo['cn'] = everyEnrollment['csr']['cn']
+                            enrollmentInfo['contractId'] = contractId
+                            enrollmentInfo['enrollmentId'] = int(
+                                everyEnrollment['location'].split('/')[-1])
+                            enrollmentOutput.append(enrollmentInfo)
+                    enrollmentsFile.write(
+                        json.dumps(enrollmentOutput, indent=4))
         else:
             root_logger.info(
                 'Unable to list Enrollments under contract: ' + contractId)
@@ -324,7 +323,8 @@ def setup(args):
             # Cannot exit here as there might be other contracts which might
             # have enrollments
             # exit(-1)
-
+    root_logger.info('\nEnrollments details are stored in ' + '"' +
+                     os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
 def show(args):
     if not args.cn:
         root_logger.info('Hostname/CN/SAN is mandatory')
