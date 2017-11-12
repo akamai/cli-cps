@@ -459,7 +459,7 @@ def list(args):
             # Find number of groups using len function
             totalEnrollments = len(enrollmentsJson['enrollments'])
             root_logger.info(str(totalEnrollments) + ' total enrollments found.')
-            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','Test on Staging First', 'In-Progress'])
+            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', ])
             table.align ="l"
 
             for everyEnrollment in enrollmentsJson['enrollments']:
@@ -479,13 +479,13 @@ def list(args):
                         certificateType = everyEnrollment['validationType'] + ' ' + everyEnrollment['certificateType']
                     rowData.append(certificateType)
                     #rowData.append(everyEnrollment['certificateType'])
-                    if 'changeManagement' in everyEnrollment:
-                        if everyEnrollment['changeManagement'] is True:
+                    if 'pendingChanges' in everyEnrollment:
+                        if len(everyEnrollment['pendingChanges']) > 0:
                             rowData.append('Yes')
                         else:
                             rowData.append('No')
-                    if 'pendingChanges' in everyEnrollment:
-                        if len(everyEnrollment['pendingChanges']) > 0:
+                    if 'changeManagement' in everyEnrollment:
+                        if everyEnrollment['changeManagement'] is True:
                             rowData.append('Yes')
                         else:
                             rowData.append('No')
@@ -618,7 +618,7 @@ def create(args):
                 root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
             else:
                 root_logger.info('Successfully created Enrollment...')
-                root_logger.info('\nUpdating your local setup folder automatically..\n')
+                root_logger.info('\nRunning setup to refresh local cache...\n')
                 setup(args)
         else:
             root_logger.info('Exiting...')
@@ -664,7 +664,7 @@ def update(args):
                         root_logger.info('Unable to find file: ' + fileName)
                         exit(0)
 
-                    if fileName.endswith('.yml'):
+                    if fileName.endswith('.yml') or fileName.endswith('.yaml'):
                         jsonFormattedContent = yaml.load(fileContent)
                         updateJsonContent = json.dumps(yaml.load(fileContent), indent = 2)
                         certificateContent = yaml.load(fileContent)
@@ -692,20 +692,19 @@ def update(args):
                                 enrollmentDetailsJson = enrollmentDetails.json()
                                 #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                                 #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
-                                listOfPatches = jsonpatch.JsonPatch.from_diff(jsonFormattedContent, enrollmentDetailsJson)
-                                #root_logger.info(listOfPatches)
-                                table = PrettyTable(['Action', 'Attribute', 'Existing Value in CPS'])
+                                listOfPatches = jsonpatch.JsonPatch.from_diff(enrollmentDetailsJson,jsonFormattedContent)
+                                root_logger.info(listOfPatches)
+                                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                                table = PrettyTable(['Op', 'Path', 'Value'])
                                 table.align ="l"
                                 for everyPatch in listOfPatches:
                                     #root_logger.info(everyPatch)
                                     rowData = []
                                     action = everyPatch['op']
-                                    if action == 'replace':
-                                        action = 'Updated'
                                     rowData.append(action)
                                     attribute = everyPatch['path']
-                                    attribute = attribute.replace('/','-->')
-                                    attribute = attribute.replace('-->','',1)
+                                    #attribute = attribute.replace('/','-->')
+                                    #attribute = attribute.replace('-->','',1)
                                     rowData.append(attribute)
                                     if 'value' in everyPatch:
                                         attributeValue = everyPatch['value']
