@@ -136,6 +136,7 @@ def cli():
     actions["show"] = create_sub_command(
         subparsers, "show",
         "Display details of Certificate",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
         [{"name": "cn", "help": "Common Name of certificate"}])
 
     actions["create"] = create_sub_command(
@@ -152,23 +153,27 @@ def cli():
         subparsers, "update",
         "Update a certificate, reading input from input yaml file. "
         "(Optionally, use --file to specify ",
-        [{"name": "force", "help": "Skip the stdout display and user confirmation"}],
+        [{"name": "force", "help": "Skip the stdout display and user confirmation"},
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
         [{"name": "cn", "help": "Common Name of Certificate to update"},
          {"name": "file",
           "help": "Input filename from templates folder to read certificate/enrollment details"}])
 
     actions["download"] = create_sub_command(
         subparsers, "download", "Download Enrollment data in yaml format to a file",
-        [{"name": "outputfile", "help": "Name of the outputfile to be saved to"}],
+        [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
         [{"name": "format", "help": "Accepted values are json OR yaml"},
          {"name": "cn", "help": "Common Name of certificate"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an ongoing Enrollment",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
         [{"name": "cn", "help": "Common Name of certificate"}])
 
     actions["status"] = create_sub_command(
         subparsers, "status", "Fetch the current Status of Enrollment/Certificate",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
         [{"name": "cn", "help": "Common Name of certificate"}])
 
     actions["list"] = create_sub_command(
@@ -325,10 +330,8 @@ def setup(args):
             # exit(-1)
     root_logger.info('\nEnrollments details are stored in ' + '"' +
                      os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
+
 def show(args):
-    if not args.cn:
-        root_logger.info('Hostname/CN/SAN is mandatory')
-        exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
@@ -340,21 +343,41 @@ def show(args):
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
-            for everyEnrollmentInfo in enrollmentsJsonContent:
-                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                    enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    root_logger.info('Fetching details of ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)
-                    if enrollmentDetails.status_code == 200:
-                        enrollmentDetailsJson = enrollmentDetails.json()
-                        yamlData = yaml.dump(enrollmentDetailsJson)
-                        root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+
+            #enrollmentId argument was NOT passed to program
+            if not args.enrollmentId:
+                #Check for multiple/duplicate CN presence
+                enrollmentCount = 0
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                        enrollmentCount += 1
                     else:
-                        root_logger.info(
-                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
-                        exit(-1)
+                        pass
+                #Error out if multiple CNs are present
+                if enrollmentCount > 1:
+                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
+                    exit(0)
+                else:
+                    for everyEnrollmentInfo in enrollmentsJsonContent:
+                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                            enrollmentId = everyEnrollmentInfo['enrollmentId']
+            #enrollmentId argument was passed to program
+            else:
+                #enrollmentId is passed as argument
+                enrollmentId = args.enrollmentId
+
+            root_logger.info('Fetching details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+            enrollmentDetails = cpsObject.getEnrollment(
+                session, enrollmentId)
+            if enrollmentDetails.status_code == 200:
+                enrollmentDetailsJson = enrollmentDetails.json()
+                yamlData = yaml.dump(enrollmentDetailsJson)
+                root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+            else:
+                root_logger.info(
+                    'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                exit(-1)
         else:
             root_logger.info(
                 'Unable to find enrollments.json file. Try to run -setup.')
@@ -375,62 +398,82 @@ def status(args):
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
-            for everyEnrollmentInfo in enrollmentsJsonContent:
-                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                    enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    root_logger.info('Fetching details of ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)
-                    if enrollmentDetails.status_code == 200:
-                        enrollmentDetailsJson = enrollmentDetails.json()
-                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                        if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                            root_logger.info(
-                                'The certificate is active, there are no current pending changes.')
-                        elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                            #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
-                            changeId = int(
-                                enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
-                            changeStatusResponse = cpsObject.getChangeStatus(
-                                session, enrollmentId, changeId)
-                            root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
-                            if changeStatusResponse.status_code == 200:
-                                changeStatusResponseJson = changeStatusResponse.json()
-                                if len(changeStatusResponseJson['allowedInput']) > 0:
-                                    for everyInput in changeStatusResponseJson['allowedInput']:
-                                        info = everyInput['info']
-                                        customResponse = cpsObject.customCall(session, info)
-                                        print('\n\n')
-                                        root_logger.info(json.dumps(customResponse.json(), indent=4))
 
-                                '''title = ['STATUS']
-                                title.append('DESCRIPTION')
-                                title.append('ERROR')
-                                table = PrettyTable(title)
-                                if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
-                                    table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
-                                                  'statusInfo']['description'], changeStatusResponseJson['error']['description'])
-                                else:
-                                    # There is no error
-                                    table_row_data = [changeStatusResponseJson['statusInfo']['status']]
-                                    table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
-                                    table_row_data.append('No Error')
-                                    table.add_row(table_row_data)
-                                root_logger.info(table)'''
-                            else:
-                                root_logger.info(
-                                    'Unable to determine change status.')
-                                exit(-1)
+            #enrollmentId argument was NOT passed to program
+            if not args.enrollmentId:
+                #Check for multiple/duplicate CN presence
+                enrollmentCount = 0
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                        enrollmentCount += 1
+                    else:
+                        pass
+                #Error out if multiple CNs are present
+                if enrollmentCount > 1:
+                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
+                    exit(0)
+                else:
+                    for everyEnrollmentInfo in enrollmentsJsonContent:
+                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                            enrollmentId = everyEnrollmentInfo['enrollmentId']
+            #enrollmentId argument was passed to program
+            else:
+                #enrollmentId is passed as argument
+                enrollmentId = args.enrollmentId
+
+            root_logger.info('Fetching details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+            enrollmentDetails = cpsObject.getEnrollment(
+                session, enrollmentId)
+            if enrollmentDetails.status_code == 200:
+                enrollmentDetailsJson = enrollmentDetails.json()
+                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
+                    root_logger.info(
+                        'The certificate is active, there are no current pending changes.')
+                elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
+                    #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
+                    changeId = int(
+                        enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
+                    changeStatusResponse = cpsObject.getChangeStatus(
+                        session, enrollmentId, changeId)
+                    root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    if changeStatusResponse.status_code == 200:
+                        changeStatusResponseJson = changeStatusResponse.json()
+                        if len(changeStatusResponseJson['allowedInput']) > 0:
+                            for everyInput in changeStatusResponseJson['allowedInput']:
+                                info = everyInput['info']
+                                customResponse = cpsObject.customCall(session, info)
+                                print('\n\n')
+                                root_logger.info(json.dumps(customResponse.json(), indent=4))
+
+                        '''title = ['STATUS']
+                        title.append('DESCRIPTION')
+                        title.append('ERROR')
+                        table = PrettyTable(title)
+                        if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
+                            table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
+                                          'statusInfo']['description'], changeStatusResponseJson['error']['description'])
                         else:
-                            root_logger.info(
-                                'Unable to determine change status.')
-                            exit(-1)
-
+                            # There is no error
+                            table_row_data = [changeStatusResponseJson['statusInfo']['status']]
+                            table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
+                            table_row_data.append('No Error')
+                            table.add_row(table_row_data)
+                        root_logger.info(table)'''
                     else:
                         root_logger.info(
-                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                            'Unable to determine change status.')
                         exit(-1)
+                else:
+                    root_logger.info(
+                        'Unable to determine change status.')
+                    exit(-1)
+
+            else:
+                root_logger.info(
+                    'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                exit(-1)
         else:
             root_logger.info(
                 'Unable to find enrollments.json file. Try to run -setup.')
@@ -452,7 +495,7 @@ def list(args):
                 for everyEnrollmentInfo in enrollmentsJsonContent:
                     contractId = everyEnrollmentInfo['contractId']
                     break
-                
+
         enrollmentsResponse = cpsObject.listEnrollments(session, contractId)
         if enrollmentsResponse.status_code == 200:
             enrollmentsJson = enrollmentsResponse.json()
@@ -580,7 +623,6 @@ def create(args):
     force = args.force
     fileName = args.file
     filePath = os.path.join(fileName)
-
     try:
         #Fetch the contractId from setup/enrollments.json file
         enrollmentsPath = os.path.join('setup')
@@ -599,6 +641,7 @@ def create(args):
             yamlContent = yamlContentHandler.read()
         certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
         certificateContent = yaml.load(yamlContent)
+        print(certificateContent)
         if not force:
             root_logger.info('\nYou are about to create a new ' + certificateContent['ra'] + ' ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] + ' enrollment for Common Name (CN) = ' + certificateContent['csr']['cn'] +
             '\nDo you wish to continue (Y/N)?')
@@ -650,105 +693,123 @@ def update(args):
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
-            enrollmentFound = 0
-            for everyEnrollmentInfo in enrollmentsJsonContent:
-                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                    enrollmentFound = 1
-                    enrollmentId = everyEnrollmentInfo['enrollmentId']
+
+            #enrollmentId argument was NOT passed to program
+            if not args.enrollmentId:
+                #Check for multiple/duplicate CN presence
+                enrollmentCount = 0
+                enrollmentFound = 0
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                        enrollmentCount += 1
+                    else:
+                        pass
+                #Error out if multiple CNs are present
+                if enrollmentCount > 1:
+                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
+                    exit(0)
+                else:
+                    for everyEnrollmentInfo in enrollmentsJsonContent:
+                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                            enrollmentId = everyEnrollmentInfo['enrollmentId']
+                            enrollmentFound = 1
+            #enrollmentId argument was passed to program
+            else:
+                #enrollmentId is passed as argument
+                enrollmentId = args.enrollmentId
+
+            root_logger.info('Fetching details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+            try:
+                with open(os.path.join(fileName), mode='r') as inputFileHandler:
+                    fileContent = inputFileHandler.read()
+            except FileNotFoundError:
+                root_logger.info('Unable to find file: ' + fileName)
+                exit(0)
+
+            if fileName.endswith('.yml') or fileName.endswith('.yaml'):
+                jsonFormattedContent = yaml.load(fileContent)
+                updateJsonContent = json.dumps(yaml.load(fileContent), indent = 2)
+                certificateContent = yaml.load(fileContent)
+            elif fileName.endswith('.json'):
+                jsonFormattedContent = json.loads(fileContent)
+                updateJsonContent = json.dumps(jsonFormattedContent, indent = 2)
+                certificateContent = jsonFormattedContent
+            else:
+                root_logger.info('Unable to determine the file format. Filename should end with either .json or .yml')
+                exit(-1)
+
+            if not force:
+                root_logger.info('\nYou are about to update ' + certificateContent['ra'] +
+                ': ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] +
+                ' enrollment for\nCommon Name (CN) = ' + certificateContent['csr']['cn'] +
+                '. Do you wish to continue (Y/N)')
+                decision = input()
+                if decision == 'Y' or decision == 'y':
+                    #compare the data
                     root_logger.info('Fetching details of ' + cn +
                                     ' with enrollmentId: ' + str(enrollmentId))
-                    try:
-                        with open(os.path.join(fileName), mode='r') as inputFileHandler:
-                            fileContent = inputFileHandler.read()
-                    except FileNotFoundError:
-                        root_logger.info('Unable to find file: ' + fileName)
-                        exit(0)
-
-                    if fileName.endswith('.yml') or fileName.endswith('.yaml'):
-                        jsonFormattedContent = yaml.load(fileContent)
-                        updateJsonContent = json.dumps(yaml.load(fileContent), indent = 2)
-                        certificateContent = yaml.load(fileContent)
-                    elif fileName.endswith('.json'):
-                        jsonFormattedContent = json.loads(fileContent)
-                        updateJsonContent = json.dumps(jsonFormattedContent, indent = 2)
-                        certificateContent = jsonFormattedContent
-                    else:
-                        root_logger.info('Unable to determine the file format. Filename should end with either .json or .yml')
-                        exit(-1)
-
-                    if not force:
-                        root_logger.info('\nYou are about to update ' + certificateContent['ra'] +
-                        ': ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] +
-                        ' enrollment for\nCommon Name (CN) = ' + certificateContent['csr']['cn'] +
-                        '. Do you wish to continue (Y/N)')
-                        decision = input()
-                        if decision == 'Y' or decision == 'y':
-                            #compare the data
-                            root_logger.info('Fetching details of ' + cn +
-                                            ' with enrollmentId: ' + str(enrollmentId))
-                            enrollmentDetails = cpsObject.getEnrollment(
-                                session, enrollmentId)
-                            if enrollmentDetails.status_code == 200:
-                                enrollmentDetailsJson = enrollmentDetails.json()
-                                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                                #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
-                                listOfPatches = jsonpatch.JsonPatch.from_diff(enrollmentDetailsJson,jsonFormattedContent)
-                                root_logger.info(listOfPatches)
-                                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                                table = PrettyTable(['Op', 'Path', 'Value'])
-                                table.align ="l"
-                                for everyPatch in listOfPatches:
-                                    #root_logger.info(everyPatch)
-                                    rowData = []
-                                    action = everyPatch['op']
-                                    rowData.append(action)
-                                    attribute = everyPatch['path']
-                                    #attribute = attribute.replace('/','-->')
-                                    #attribute = attribute.replace('-->','',1)
-                                    rowData.append(attribute)
-                                    if 'value' in everyPatch:
-                                        attributeValue = everyPatch['value']
-                                    else:
-                                        attributeValue = ''
-                                    rowData.append(attributeValue)
-                                    if action != 'move':
-                                        if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
-                                        and 'location' not in attribute:
-                                            table.add_row(rowData)
-                                    #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
-                                root_logger.info('\nFollowing are the differences \n')
-                                root_logger.info(table)
-
+                    enrollmentDetails = cpsObject.getEnrollment(
+                        session, enrollmentId)
+                    if enrollmentDetails.status_code == 200:
+                        enrollmentDetailsJson = enrollmentDetails.json()
+                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                        #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
+                        listOfPatches = jsonpatch.JsonPatch.from_diff(enrollmentDetailsJson,jsonFormattedContent)
+                        #root_logger.info(listOfPatches)
+                        #patchOutput = {}
+                        #patchOutput['data'] = listOfPatches.to_string()
+                        #root_logger.info(json.dumps(patchOutput['data'], indent=4))
+                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                        table = PrettyTable(['Op', 'Path', 'Value'])
+                        table.align ="l"
+                        for everyPatch in listOfPatches:
+                            #root_logger.info(everyPatch)
+                            rowData = []
+                            action = everyPatch['op']
+                            rowData.append(action)
+                            attribute = everyPatch['path']
+                            #attribute = attribute.replace('/','-->')
+                            #attribute = attribute.replace('-->','',1)
+                            rowData.append(attribute)
+                            if 'value' in everyPatch:
+                                attributeValue = everyPatch['value']
                             else:
-                                root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
-                                exit(1)
-                        else:
-                            #User pressed N so just go ahead, we will exit program down below
-                            pass
-                    #User passed --force so just go ahead by selecting Y
-                    else:
-                        decision = 'y'
-                    root_logger.info('\nProceeding to update the enrollment.\n')
-                    root_logger.info('\nTemporarily skipping the final UPDATE call\n')
-                    if decision == 'z' or decision == 'z':
-                        updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
-                        if updateEnrollmentResponse.status_code == 200 or 202:
-                            root_logger.info('Successfully updated the enrollment.')
-                            root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
-                    else:
-                        root_logger.info('Exiting the program')
-                        exit(0)
-                else:
-                    pass
+                                attributeValue = ''
+                            rowData.append(attributeValue)
+                            if action != 'move':
+                                if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
+                                and 'location' not in attribute:
+                                    table.add_row(rowData)
+                            #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
+                        root_logger.info('\nFollowing are the differences \n')
+                        root_logger.info(table)
 
-            if enrollmentFound:
-                pass
+                    else:
+                        root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
+                        exit(1)
+                else:
+                    #User pressed N so just go ahead, we will exit program down below
+                    pass
+            #User passed --force so just go ahead by selecting Y
             else:
-                root_logger.info('No such enrollement/CN found.')
+                decision = 'y'
+            root_logger.info('\nProceeding to update the enrollment.\n')
+            root_logger.info('\nTemporarily skipping the final UPDATE call\n')
+            if decision == 'z' or decision == 'z':
+                updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
+                if updateEnrollmentResponse.status_code == 200 or 202:
+                    root_logger.info('Successfully updated the enrollment.')
+                    root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
+            else:
+                root_logger.info('Exiting the program')
                 exit(0)
+
+        if enrollmentFound:
+            pass
         else:
-            root_logger.info('No such input file found. Please ensure absolute file path is given.')
-            exit(-1)
+            root_logger.info('No such enrollement/CN found.')
+            exit(0)
 
 def cancel(args):
     if not args.cn:
@@ -765,62 +826,82 @@ def cancel(args):
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
-            for everyEnrollmentInfo in enrollmentsJsonContent:
-                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                    enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    root_logger.info('Fetching details of ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)
-                    if enrollmentDetails.status_code == 200:
-                        enrollmentDetailsJson = enrollmentDetails.json()
-                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                        if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                            root_logger.info(
-                                'The certificate is active, there are no current pending changes.')
-                        elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                            changeId = int(
-                                enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
-                            changeStatusResponse = cpsObject.getChangeStatus(
-                                session, enrollmentId, changeId)
-                            #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
-                            if changeStatusResponse.status_code == 200:
-                                changeStatusResponseJson = changeStatusResponse.json()
-                                title = ['STATUS']
-                                title.append('DESCRIPTION')
-                                title.append('ERROR')
-                                table = PrettyTable(title)
-                                if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
-                                    table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
-                                                  'statusInfo']['description'], changeStatusResponseJson['error']['description'])
-                                else:
-                                    # There is no error
-                                    table_row_data = [changeStatusResponseJson['statusInfo']['status']]
-                                    table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
-                                    table_row_data.append('No Error')
-                                    table.add_row(table_row_data)
-                                root_logger.info(table)
 
-                                root_logger.info('Cancelling the request with change ID: ' + str(changeId))
-                                cancelChangeResponse = cpsObject.cancelChange(session, enrollmentId, changeId)
-                                if cancelChangeResponse.status_code == 200:
-                                    root_logger.info('Cancellation successful')
-                                else:
-                                    root_logger.info('Cancellation is NOT successful')
+            #enrollmentId argument was NOT passed to program
+            if not args.enrollmentId:
+                #Check for multiple/duplicate CN presence
+                enrollmentCount = 0
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                        enrollmentCount += 1
+                    else:
+                        pass
+                #Error out if multiple CNs are present
+                if enrollmentCount > 1:
+                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
+                    exit(0)
+                else:
+                    for everyEnrollmentInfo in enrollmentsJsonContent:
+                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                            enrollmentId = everyEnrollmentInfo['enrollmentId']
+            #enrollmentId argument was passed to program
+            else:
+                #enrollmentId is passed as argument
+                enrollmentId = args.enrollmentId
 
-                            else:
-                                root_logger.info(
-                                    'Unable to determine change status.')
-                                exit(-1)
+            root_logger.info('Fetching details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+            enrollmentDetails = cpsObject.getEnrollment(
+                session, enrollmentId)
+            if enrollmentDetails.status_code == 200:
+                enrollmentDetailsJson = enrollmentDetails.json()
+                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
+                    root_logger.info(
+                        'The certificate is active, there are no current pending changes.')
+                elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
+                    changeId = int(
+                        enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
+                    changeStatusResponse = cpsObject.getChangeStatus(
+                        session, enrollmentId, changeId)
+                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    if changeStatusResponse.status_code == 200:
+                        changeStatusResponseJson = changeStatusResponse.json()
+                        title = ['STATUS']
+                        title.append('DESCRIPTION')
+                        title.append('ERROR')
+                        table = PrettyTable(title)
+                        if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
+                            table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
+                                          'statusInfo']['description'], changeStatusResponseJson['error']['description'])
                         else:
-                            root_logger.info(
-                                'Unable to determine change status.')
-                            exit(-1)
+                            # There is no error
+                            table_row_data = [changeStatusResponseJson['statusInfo']['status']]
+                            table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
+                            table_row_data.append('No Error')
+                            table.add_row(table_row_data)
+                        root_logger.info(table)
+
+                        root_logger.info('Cancelling the request with change ID: ' + str(changeId))
+                        cancelChangeResponse = cpsObject.cancelChange(session, enrollmentId, changeId)
+                        if cancelChangeResponse.status_code == 200:
+                            root_logger.info('Cancellation successful')
+                        else:
+                            root_logger.info('Cancellation is NOT successful')
 
                     else:
                         root_logger.info(
-                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                            'Unable to determine change status.')
                         exit(-1)
+                else:
+                    root_logger.info(
+                        'Unable to determine change status.')
+                    exit(-1)
+
+            else:
+                root_logger.info(
+                    'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                exit(-1)
         else:
             root_logger.info(
                 'Unable to find enrollments.json file. Try to run -setup.')
@@ -853,27 +934,48 @@ def download(args):
             with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
-            for everyEnrollmentInfo in enrollmentsJsonContent:
-                if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                    enrollmentId = everyEnrollmentInfo['enrollmentId']
-                    root_logger.info('\nFetching details of ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)
-                    if enrollmentDetails.status_code == 200:
-                        if format == 'yaml' or format == 'yml':
-                            enrollmentDetailsJson = enrollmentDetails.json()
-                            Data = yaml.dump(enrollmentDetailsJson)
-                        else:
-                            Data = json.dumps(enrollmentDetails.json(), indent=4)
-
-                        with open(os.path.join(outputFolder, outputfile),'w') as outputfile_handler:
-                            outputfile_handler.write(Data)
-                        root_logger.info('\nOutput saved in ' + os.path.join(outputFolder, outputfile) + '.\n')
+            #enrollmentId argument was NOT passed to program
+            if not args.enrollmentId:
+                #Check for multiple/duplicate CN presence
+                enrollmentCount = 0
+                enrollmentFound = 0
+                for everyEnrollmentInfo in enrollmentsJsonContent:
+                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                        enrollmentCount += 1
                     else:
-                        root_logger.info(
-                            'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
-                        exit(-1)
+                        pass
+                #Error out if multiple CNs are present
+                if enrollmentCount > 1:
+                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
+                    exit(0)
+                else:
+                    for everyEnrollmentInfo in enrollmentsJsonContent:
+                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
+                            enrollmentId = everyEnrollmentInfo['enrollmentId']
+                            enrollmentFound = 1
+            #enrollmentId argument was passed to program
+            else:
+                #enrollmentId is passed as argument
+                enrollmentId = args.enrollmentId
+
+            root_logger.info('\nFetching details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+            enrollmentDetails = cpsObject.getEnrollment(
+                session, enrollmentId)
+            if enrollmentDetails.status_code == 200:
+                if format == 'yaml' or format == 'yml':
+                    enrollmentDetailsJson = enrollmentDetails.json()
+                    Data = yaml.dump(enrollmentDetailsJson)
+                else:
+                    Data = json.dumps(enrollmentDetails.json(), indent=4)
+
+                with open(os.path.join(outputFolder, outputfile),'w') as outputfile_handler:
+                    outputfile_handler.write(Data)
+                root_logger.info('\nOutput saved in ' + os.path.join(outputFolder, outputfile) + '.\n')
+            else:
+                root_logger.info(
+                    'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                exit(-1)
         else:
             root_logger.info(
                 '\nUnable to find enrollments.json file. Try to run setup.\n')
