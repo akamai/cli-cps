@@ -136,8 +136,9 @@ def cli():
     actions["show"] = create_sub_command(
         subparsers, "show",
         "Display details of Certificate",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
-        [{"name": "cn", "help": "Common Name of certificate"}])
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+         None)
 
     actions["create"] = create_sub_command(
         subparsers, "create",
@@ -154,22 +155,23 @@ def cli():
         "Update a certificate, reading input from input yaml file. "
         "(Optionally, use --file to specify ",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
-         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
-        [{"name": "cn", "help": "Common Name of Certificate to update"},
-         {"name": "file",
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "cn", "help": "Common Name of Certificate to update"}],
+        [{"name": "file",
           "help": "Input filename from templates folder to read certificate/enrollment details"}])
 
     actions["download"] = create_sub_command(
         subparsers, "download", "Download Enrollment data in yaml format to a file",
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
-         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
-        [{"name": "format", "help": "Accepted values are json OR yaml"},
-         {"name": "cn", "help": "Common Name of certificate"}])
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+        [{"name": "format", "help": "Accepted values are json OR yaml"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an ongoing Enrollment",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
-        [{"name": "cn", "help": "Common Name of certificate"}])
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+         None)
 
     actions["status"] = create_sub_command(
         subparsers, "status", "Fetch the current Status of Enrollment/Certificate",
