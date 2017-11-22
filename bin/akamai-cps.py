@@ -35,6 +35,8 @@ from cryptography.hazmat.backends import default_backend
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
 import jsonpatch
 import datetime
+from xlsxwriter.workbook import Workbook
+import csv
 
 
 PACKAGE_VERSION = "0.1.0"
@@ -553,6 +555,8 @@ def audit(args):
     if not os.path.exists('audit'):
         os.makedirs('audit')
     outputFile = os.path.join('audit', output_file_name)
+    xlsxFile = outputFile.replace('.csv', '') + '.xlsx'
+    
     with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
             'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone\n')
@@ -614,6 +618,16 @@ def audit(args):
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
             root_logger.info('\nDone! Output file written here: ' + outputFile)
 
+            # Merge CSV files into XLSX
+            workbook = Workbook(os.path.join(xlsxFile))
+            worksheet = workbook.add_worksheet('Certificate')
+            with open(os.path.join(outputFile), 'rt', encoding='utf8') as f:
+                reader = csv.reader(f)
+                for r, row in enumerate(reader):
+                    for c, col in enumerate(row):
+                        worksheet.write(r, c, col)
+            workbook.close()
+
 def validate(jsonContent, certType):
     if certType == 'OV-SAN':
         if jsonContent['validationType'] != 'ov':
@@ -641,12 +655,26 @@ def create(args):
                 for everyEnrollmentInfo in enrollmentsJsonContent:
                     contractId = everyEnrollmentInfo['contractId']
                     break
-        #Read from YAML file and load convert it to JSON.
-        with open(filePath,'r') as yamlContentHandler:
-            yamlContent = yamlContentHandler.read()
-        certificateJsonContent = json.dumps(yaml.load(yamlContent), indent = 2)
-        certificateContent = yaml.load(yamlContent)
-        print(certificateContent)
+
+        try:
+            with open(filePath, mode='r') as inputFileHandler:
+                fileContent = inputFileHandler.read()
+        except FileNotFoundError:
+            root_logger.info('Unable to find file: ' + fileName)
+            exit(0)
+
+        if filePath.endswith('.yml') or filePath.endswith('.yaml'):
+            jsonFormattedContent = yaml.load(fileContent)
+            updateJsonContent = json.dumps(yaml.load(fileContent), indent = 2)
+            certificateContent = yaml.load(fileContent)
+        elif filePath.endswith('.json'):
+            jsonFormattedContent = json.loads(fileContent)
+            updateJsonContent = json.dumps(jsonFormattedContent, indent = 2)
+            certificateContent = jsonFormattedContent
+        else:
+            root_logger.info('Unable to determine the file format. Filename should end with either .json or .yml')
+            exit(-1)
+
         if not force:
             root_logger.info('\nYou are about to create a new ' + certificateContent['ra'] + ' ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] + ' enrollment for Common Name (CN) = ' + certificateContent['csr']['cn'] +
             '\nDo you wish to continue (Y/N)?')
