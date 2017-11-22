@@ -173,8 +173,9 @@ def cli():
 
     actions["status"] = create_sub_command(
         subparsers, "status", "Fetch the current Status of Enrollment/Certificate",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"}],
-        [{"name": "cn", "help": "Common Name of certificate"}])
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+         None)
 
     actions["list"] = create_sub_command(
         subparsers, "list", "List all Enrollments or Certificates")
@@ -270,6 +271,35 @@ def printData(title, data):
 '''if args.debug:
     root_logger.setLevel(logging.DEBUG)'''
 
+def checkEnrollmentID(args, enrollmentsJsonContent):
+    enrollmentResult = {}
+    enrollmentResult['found'] = False
+    enrollmentResult['enrollmentId'] = 0000
+    #enrollmentId argument was NOT passed to program
+    if not args.enrollmentId:
+        #Check for multiple/duplicate CN presence
+        enrollmentCount = 0
+        for everyEnrollmentInfo in enrollmentsJsonContent:
+            if everyEnrollmentInfo['cn'] == args.cn or 'sans' in everyEnrollmentInfo and args.cn in everyEnrollmentInfo['sans']:
+                enrollmentCount += 1
+            else:
+                pass
+        #Error out if multiple CNs are present
+        if enrollmentCount > 1:
+            root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
+            exit(0)
+        else:
+            for everyEnrollmentInfo in enrollmentsJsonContent:
+                if everyEnrollmentInfo['cn'] == args.cn or 'sans' in everyEnrollmentInfo and args.cn in everyEnrollmentInfo['sans']:
+                    enrollmentResult['enrollmentId'] = everyEnrollmentInfo['enrollmentId']
+                    enrollmentResult['found'] = True
+    #enrollmentId argument was passed to program
+    else:
+        #enrollmentId is passed as argument
+        enrollmentResult['enrollmentId'] = args.enrollmentId
+        enrollmentResult['found'] = True
+
+    return enrollmentResult
 
 def setup(args):
     #root_logger.info('Setting up required files.... please wait')
@@ -332,6 +362,9 @@ def setup(args):
                      os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
 
 def show(args):
+    if not args.cn and not args.enrollmentId:
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
+        exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
@@ -344,27 +377,12 @@ def show(args):
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
 
-            #enrollmentId argument was NOT passed to program
-            if not args.enrollmentId:
-                #Check for multiple/duplicate CN presence
-                enrollmentCount = 0
-                for everyEnrollmentInfo in enrollmentsJsonContent:
-                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                        enrollmentCount += 1
-                    else:
-                        pass
-                #Error out if multiple CNs are present
-                if enrollmentCount > 1:
-                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
-                    exit(0)
-                else:
-                    for everyEnrollmentInfo in enrollmentsJsonContent:
-                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                            enrollmentId = everyEnrollmentInfo['enrollmentId']
-            #enrollmentId argument was passed to program
+            enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
             else:
-                #enrollmentId is passed as argument
-                enrollmentId = args.enrollmentId
+                root_logger.info('Enrollment ID is not found.\n')
+                exit(0)
 
             root_logger.info('Fetching details of ' + cn +
                             ' with enrollmentId: ' + str(enrollmentId))
@@ -384,8 +402,8 @@ def show(args):
             exit(-1)
 
 def status(args):
-    if not args.cn:
-        root_logger.info('Hostname/CN/SAN is mandatory')
+    if not args.cn and not args.enrollmentId:
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -399,27 +417,12 @@ def status(args):
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
 
-            #enrollmentId argument was NOT passed to program
-            if not args.enrollmentId:
-                #Check for multiple/duplicate CN presence
-                enrollmentCount = 0
-                for everyEnrollmentInfo in enrollmentsJsonContent:
-                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                        enrollmentCount += 1
-                    else:
-                        pass
-                #Error out if multiple CNs are present
-                if enrollmentCount > 1:
-                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
-                    exit(0)
-                else:
-                    for everyEnrollmentInfo in enrollmentsJsonContent:
-                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                            enrollmentId = everyEnrollmentInfo['enrollmentId']
-            #enrollmentId argument was passed to program
+            enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
             else:
-                #enrollmentId is passed as argument
-                enrollmentId = args.enrollmentId
+                root_logger.info('Enrollment ID is not found.\n')
+                exit(0)
 
             root_logger.info('Fetching details of ' + cn +
                             ' with enrollmentId: ' + str(enrollmentId))
@@ -679,8 +682,8 @@ def create(args):
 def update(args):
     force = args.force
     fileName = args.file
-    if not args.cn:
-        root_logger.info('Hostname/CN/SAN is mandatory')
+    if not args.cn and not args.enrollmentId:
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -694,29 +697,12 @@ def update(args):
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
 
-            #enrollmentId argument was NOT passed to program
-            if not args.enrollmentId:
-                #Check for multiple/duplicate CN presence
-                enrollmentCount = 0
-                enrollmentFound = 0
-                for everyEnrollmentInfo in enrollmentsJsonContent:
-                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                        enrollmentCount += 1
-                    else:
-                        pass
-                #Error out if multiple CNs are present
-                if enrollmentCount > 1:
-                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
-                    exit(0)
-                else:
-                    for everyEnrollmentInfo in enrollmentsJsonContent:
-                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                            enrollmentId = everyEnrollmentInfo['enrollmentId']
-                            enrollmentFound = 1
-            #enrollmentId argument was passed to program
+            enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
             else:
-                #enrollmentId is passed as argument
-                enrollmentId = args.enrollmentId
+                root_logger.info('Enrollment ID is not found.\n')
+                exit(0)
 
             root_logger.info('Fetching details of ' + cn +
                             ' with enrollmentId: ' + str(enrollmentId))
@@ -805,15 +791,9 @@ def update(args):
                 root_logger.info('Exiting the program')
                 exit(0)
 
-        if enrollmentFound:
-            pass
-        else:
-            root_logger.info('No such enrollement/CN found.')
-            exit(0)
-
 def cancel(args):
-    if not args.cn:
-        root_logger.info('Hostname/CN/SAN is mandatory')
+    if not args.cn and not args.enrollmentId:
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -827,27 +807,12 @@ def cancel(args):
             # root_logger.info(policyStringContent)
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
 
-            #enrollmentId argument was NOT passed to program
-            if not args.enrollmentId:
-                #Check for multiple/duplicate CN presence
-                enrollmentCount = 0
-                for everyEnrollmentInfo in enrollmentsJsonContent:
-                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                        enrollmentCount += 1
-                    else:
-                        pass
-                #Error out if multiple CNs are present
-                if enrollmentCount > 1:
-                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
-                    exit(0)
-                else:
-                    for everyEnrollmentInfo in enrollmentsJsonContent:
-                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                            enrollmentId = everyEnrollmentInfo['enrollmentId']
-            #enrollmentId argument was passed to program
+            enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
             else:
-                #enrollmentId is passed as argument
-                enrollmentId = args.enrollmentId
+                root_logger.info('Enrollment ID is not found.\n')
+                exit(0)
 
             root_logger.info('Fetching details of ' + cn +
                             ' with enrollmentId: ' + str(enrollmentId))
@@ -912,8 +877,8 @@ def download(args):
     if format != 'json' and format != 'yml' and format != 'yaml':
         root_logger.info('Format can either be json or yaml or yml')
         exit(-1)
-    if not args.cn:
-        root_logger.info('Hostname/CN/SAN is mandatory')
+    if not args.cn and not args.enrollmentId:
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
         exit(-1)
     cn = args.cn
 
@@ -934,29 +899,13 @@ def download(args):
             with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
                 enrollmentsStringContent = enrollmentsFileHandler.read()
             enrollmentsJsonContent = json.loads(enrollmentsStringContent)
-            #enrollmentId argument was NOT passed to program
-            if not args.enrollmentId:
-                #Check for multiple/duplicate CN presence
-                enrollmentCount = 0
-                enrollmentFound = 0
-                for everyEnrollmentInfo in enrollmentsJsonContent:
-                    if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                        enrollmentCount += 1
-                    else:
-                        pass
-                #Error out if multiple CNs are present
-                if enrollmentCount > 1:
-                    root_logger.info('\nMore than 1 enrollments found for same CN. Please use --enrollmentID as input\n')
-                    exit(0)
-                else:
-                    for everyEnrollmentInfo in enrollmentsJsonContent:
-                        if everyEnrollmentInfo['cn'] == cn or 'sans' in everyEnrollmentInfo and cn in everyEnrollmentInfo['sans']:
-                            enrollmentId = everyEnrollmentInfo['enrollmentId']
-                            enrollmentFound = 1
-            #enrollmentId argument was passed to program
+
+            enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
             else:
-                #enrollmentId is passed as argument
-                enrollmentId = args.enrollmentId
+                root_logger.info('Enrollment ID is not found.\n')
+                exit(0)
 
             root_logger.info('\nFetching details of ' + cn +
                             ' with enrollmentId: ' + str(enrollmentId))
