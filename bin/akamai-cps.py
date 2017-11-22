@@ -182,7 +182,9 @@ def cli():
          None)
 
     actions["list"] = create_sub_command(
-        subparsers, "list", "List all Enrollments or Certificates")
+        subparsers, "list", "List all Enrollments or Certificates",
+        [{"name": "showExpiration", "help": "shows expiration date of the enrollment"}],
+         None)
 
     args = parser.parse_args()
 
@@ -227,7 +229,7 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            if name == 'force':
+            if name == 'force' or name == 'showExpiration':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -510,8 +512,10 @@ def list(args):
             totalEnrollments = len(enrollmentsJson['enrollments'])
             root_logger.info(str(totalEnrollments) + ' total enrollments found.')
             table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', ])
+            if args.showExpiration:
+                table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', 'Expiration'])
+                root_logger.info('\nFetching Expiration date takes more time.. Please wait. \n')
             table.align ="l"
-
             for everyEnrollment in enrollmentsJson['enrollments']:
                 if 'csr' in everyEnrollment:
                     rowData = []
@@ -522,7 +526,8 @@ def list(args):
                             cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
                     else:
                         pass
-                    rowData.append(everyEnrollment['location'].split('/')[-1])
+                    enrollmentId = everyEnrollment['location'].split('/')[-1]
+                    rowData.append(enrollmentId)
                     rowData.append(cn)
                     certificateType = everyEnrollment['validationType']
                     if certificateType != 'third-party':
@@ -539,6 +544,19 @@ def list(args):
                             rowData.append('Yes')
                         else:
                             rowData.append('No')
+
+                if args.showExpiration:
+                    #enrollmentDetailsJson = enrollmentDetails.json()
+                    # print(json.dumps(enrollmentDetails.json(),indent=4))
+                    certResponse = cpsObject.getCertificate(session, enrollmentId)
+                    expiration = ''
+                    if certResponse.status_code == 200:
+                        cert = x509.load_pem_x509_certificate(certResponse.json()['certificate'].encode(), default_backend())
+                        expiration = str(cert.not_valid_after.date())
+                    else:
+                        root_logger.debug(
+                            'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                    rowData.append(expiration)
                 table.add_row(rowData)
             root_logger.info(table)
     except FileNotFoundError:
@@ -556,7 +574,7 @@ def audit(args):
         os.makedirs('audit')
     outputFile = os.path.join('audit', output_file_name)
     xlsxFile = outputFile.replace('.csv', '') + '.xlsx'
-    
+
     with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
             'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone\n')
@@ -587,7 +605,7 @@ def audit(args):
                     expiration = ''
                     if certResponse.status_code == 200:
                         cert = x509.load_pem_x509_certificate(certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after)
+                        expiration = str(cert.not_valid_after.date())
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
@@ -767,16 +785,13 @@ def update(args):
                                     ' with enrollmentId: ' + str(enrollmentId))
                     enrollmentDetails = cpsObject.getEnrollment(
                         session, enrollmentId)
-                    if enrollmentDetails.status_code == 200:
+
+                    #Commenting the enrollment fetch call to compare
+                    '''if enrollmentDetails.status_code == 200:
                         enrollmentDetailsJson = enrollmentDetails.json()
                         #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                         #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
                         listOfPatches = jsonpatch.JsonPatch.from_diff(enrollmentDetailsJson,jsonFormattedContent)
-                        #root_logger.info(listOfPatches)
-                        #patchOutput = {}
-                        #patchOutput['data'] = listOfPatches.to_string()
-                        #root_logger.info(json.dumps(patchOutput['data'], indent=4))
-                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                         table = PrettyTable(['Op', 'Path', 'Value'])
                         table.align ="l"
                         for everyPatch in listOfPatches:
@@ -803,7 +818,7 @@ def update(args):
 
                     else:
                         root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
-                        exit(1)
+                        exit(1)'''
                 else:
                     #User pressed N so just go ahead, we will exit program down below
                     pass
@@ -811,8 +826,7 @@ def update(args):
             else:
                 decision = 'y'
             root_logger.info('\nProceeding to update the enrollment.\n')
-            root_logger.info('\nTemporarily skipping the final UPDATE call\n')
-            if decision == 'z' or decision == 'z':
+            if decision == 'y' or decision == 'Y':
                 updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
                 if updateEnrollmentResponse.status_code == 200 or 202:
                     root_logger.info('Successfully updated the enrollment.')
