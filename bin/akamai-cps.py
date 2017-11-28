@@ -710,7 +710,7 @@ def create(args):
             base_url, session = init_config(args.edgerc, args.section)
             cpsObject = cps(base_url)
             #Send a request to create enrollment using wrapper function
-            createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=certificateJsonContent)
+            createEnrollmentResponse = cpsObject.createEnrollment(session, contractId, data=updateJsonContent)
             if createEnrollmentResponse.status_code != 200 and createEnrollmentResponse.status_code != 202:
                 root_logger.info('\nFAILED to create certificate: ')
                 root_logger.info('Response Code is: '+ str(createEnrollmentResponse.status_code))
