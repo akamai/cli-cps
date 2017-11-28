@@ -387,7 +387,7 @@ def show(args):
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
             else:
-                root_logger.info('Enrollment ID is not found.\n')
+                root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
             root_logger.info('Fetching details of ' + cn +
@@ -427,7 +427,7 @@ def status(args):
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
             else:
-                root_logger.info('Enrollment ID is not found.\n')
+                root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
             root_logger.info('Fetching details of ' + cn +
@@ -514,13 +514,18 @@ def list(args):
             table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', ])
             if args.showExpiration:
                 table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', 'Expiration'])
-                root_logger.info('\nFetching Expiration date takes more time.. Please wait. \n')
+                root_logger.info('\nFetching list with production expiration dates. Please wait... \n')
             table.align ="l"
+            count = 0
             for everyEnrollment in enrollmentsJson['enrollments']:
                 if 'csr' in everyEnrollment:
+                    count = count + 1
                     rowData = []
                     #print(json.dumps(everyEnrollment, indent = 4))
                     cn = everyEnrollment['csr']['cn']
+                    if args.showExpiration:
+                        root_logger.info('Processing ' + str(count) + ' of ' + str(
+                            totalEnrollments) + ': Common Name (CN): ' + cn)
                     if 'sans' in everyEnrollment['csr'] and everyEnrollment['csr']['sans'] is not None:
                         if (len(everyEnrollment['csr']['sans']) > 1):
                             cn = cn + ' (' + str(len(everyEnrollment['csr']['sans'])) + ')'
@@ -749,7 +754,7 @@ def update(args):
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
             else:
-                root_logger.info('Enrollment ID is not found.\n')
+                root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
             root_logger.info('Fetching details of ' + cn +
@@ -825,14 +830,14 @@ def update(args):
             #User passed --force so just go ahead by selecting Y
             else:
                 decision = 'y'
-            root_logger.info('\nProceeding to update the enrollment.\n')
             if decision == 'y' or decision == 'Y':
+                root_logger.info('\nTrying to update enrollment...\n')
                 updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
                 if updateEnrollmentResponse.status_code == 200 or 202:
-                    root_logger.info('Successfully updated the enrollment.')
+                    root_logger.info('Successfully updated enrollment...')
                     root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
             else:
-                root_logger.info('Exiting the program')
+                root_logger.info('Exiting...')
                 exit(0)
 
 def cancel(args):
@@ -855,7 +860,7 @@ def cancel(args):
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
             else:
-                root_logger.info('Enrollment ID is not found.\n')
+                root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
             root_logger.info('Fetching details of ' + cn +
@@ -948,7 +953,7 @@ def download(args):
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
             else:
-                root_logger.info('Enrollment ID is not found.\n')
+                root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
             root_logger.info('\nFetching details of ' + cn +
