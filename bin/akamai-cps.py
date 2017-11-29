@@ -390,8 +390,12 @@ def show(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            root_logger.info('Fetching details of ' + cn +
-                            ' with enrollmentId: ' + str(enrollmentId))
+            if args.cn:
+                root_logger.info('Fetching details of ' + cn +
+                                ' with enrollmentId: ' + str(enrollmentId))
+            else:
+                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
@@ -430,8 +434,12 @@ def status(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            root_logger.info('Fetching details of ' + cn +
-                            ' with enrollmentId: ' + str(enrollmentId))
+            if args.cn:
+                root_logger.info('Fetching details of ' + cn +
+                                ' with enrollmentId: ' + str(enrollmentId))
+            else:
+                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
@@ -757,8 +765,12 @@ def update(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            root_logger.info('Fetching details of ' + cn +
-                            ' with enrollmentId: ' + str(enrollmentId))
+            if args.cn:
+                root_logger.info('Fetching details of ' + cn +
+                                ' with enrollmentId: ' + str(enrollmentId))
+            else:
+                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+
             try:
                 with open(os.path.join(fileName), mode='r') as inputFileHandler:
                     fileContent = inputFileHandler.read()
@@ -786,8 +798,11 @@ def update(args):
                 decision = input()
                 if decision == 'Y' or decision == 'y':
                     #compare the data
-                    root_logger.info('Fetching details of ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
+                    if args.cn:
+                        root_logger.info('Fetching details of ' + cn +
+                                        ' with enrollmentId: ' + str(enrollmentId))
+                    else:
+                        root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
                     enrollmentDetails = cpsObject.getEnrollment(
                         session, enrollmentId)
 
@@ -863,8 +878,12 @@ def cancel(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            root_logger.info('Fetching details of ' + cn +
-                            ' with enrollmentId: ' + str(enrollmentId))
+            if args.cn:
+                root_logger.info('Fetching details of ' + cn +
+                                ' with enrollmentId: ' + str(enrollmentId))
+            else:
+                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
@@ -956,8 +975,12 @@ def download(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            root_logger.info('\nFetching details of ' + cn +
-                            ' with enrollmentId: ' + str(enrollmentId))
+            if args.cn:
+                root_logger.info('Fetching details of ' + cn +
+                                ' with enrollmentId: ' + str(enrollmentId))
+            else:
+                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+                
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
