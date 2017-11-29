@@ -848,8 +848,12 @@ def update(args):
             if decision == 'y' or decision == 'Y':
                 root_logger.info('\nTrying to update enrollment...\n')
                 updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
-                if updateEnrollmentResponse.status_code == 200 or 202:
+                if updateEnrollmentResponse.status_code == 200 or updateEnrollmentResponse.status_code == 202:
                     root_logger.info('Successfully updated enrollment...')
+                    root_logger.info(updateEnrollmentResponse.status_code)
+                    root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
+                else:
+                    root_logger.info('Unable to update due to the below reason:\n')
                     root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
             else:
                 root_logger.info('Exiting...')
@@ -953,8 +957,11 @@ def download(args):
     outputFolder = format
     if args.outputfile:
         outputfile = args.outputfile
-    else:
+    elif args.cn:
         outputfile = cn.replace('.','_') + '.' + str(format)
+    else:
+        enrollmentId = args.enrollmentId
+        outputfile = enrollmentId.replace('.','_') + '.' + str(format)
 
     if not os.path.exists(outputFolder):
         os.makedirs(outputFolder)
@@ -980,7 +987,7 @@ def download(args):
                                 ' with enrollmentId: ' + str(enrollmentId))
             else:
                 root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
-                
+
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
