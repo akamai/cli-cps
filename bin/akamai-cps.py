@@ -765,12 +765,6 @@ def update(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            if args.cn:
-                root_logger.info('Fetching details of ' + cn +
-                                ' with enrollmentId: ' + str(enrollmentId))
-            else:
-                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
-
             try:
                 with open(os.path.join(fileName), mode='r') as inputFileHandler:
                     fileContent = inputFileHandler.read()
@@ -791,20 +785,18 @@ def update(args):
                 exit(-1)
 
             if not force:
-                root_logger.info('\nYou are about to update ' + certificateContent['ra'] +
-                ': ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] +
-                ' enrollment for\nCommon Name (CN) = ' + certificateContent['csr']['cn'] +
-                '. Do you wish to continue (Y/N)')
+                root_logger.info('\nYou are about to update enrollment id: ' + enrollmentId + ' and CN: ' + certificateContent['csr']['cn'] +
+                '\nDo you wish to continue (Y/N)')
                 decision = input()
                 if decision == 'Y' or decision == 'y':
                     #compare the data
-                    if args.cn:
+                    '''if args.cn:
                         root_logger.info('Fetching details of ' + cn +
                                         ' with enrollmentId: ' + str(enrollmentId))
                     else:
                         root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
                     enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)
+                        session, enrollmentId)'''
 
                     #Commenting the enrollment fetch call to compare
                     '''if enrollmentDetails.status_code == 200:
