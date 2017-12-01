@@ -298,12 +298,18 @@ def checkEnrollmentID(args, enrollmentsJsonContent):
             for everyEnrollmentInfo in enrollmentsJsonContent:
                 if everyEnrollmentInfo['cn'] == args.cn or 'sans' in everyEnrollmentInfo and args.cn in everyEnrollmentInfo['sans']:
                     enrollmentResult['enrollmentId'] = everyEnrollmentInfo['enrollmentId']
+                    enrollmentResult['cn'] = everyEnrollmentInfo['cn']
                     enrollmentResult['found'] = True
+                    break
     #enrollmentId argument was passed to program
     else:
-        #enrollmentId is passed as argument
-        enrollmentResult['enrollmentId'] = args.enrollmentId
-        enrollmentResult['found'] = True
+        for everyEnrollmentInfo in enrollmentsJsonContent:
+            if str(everyEnrollmentInfo['enrollmentId']) == str(args.enrollmentId):
+                #enrollmentId is passed as argument
+                enrollmentResult['enrollmentId'] = args.enrollmentId
+                enrollmentResult['cn'] = everyEnrollmentInfo['cn']
+                enrollmentResult['found'] = True
+                break
 
     return enrollmentResult
 
@@ -386,15 +392,14 @@ def show(args):
             enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
             else:
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            if args.cn:
-                root_logger.info('Fetching details of ' + cn +
-                                ' with enrollmentId: ' + str(enrollmentId))
-            else:
-                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+            root_logger.info('Showing details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+
 
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
@@ -430,15 +435,13 @@ def status(args):
             enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
             else:
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            if args.cn:
-                root_logger.info('Fetching details of ' + cn +
+            root_logger.info('Getting status for ' + cn +
                                 ' with enrollmentId: ' + str(enrollmentId))
-            else:
-                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
 
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
@@ -658,6 +661,8 @@ def audit(args):
                     for c, col in enumerate(row):
                         worksheet.write(r, c, col)
             workbook.close()
+            #Delete the csv file at the end
+            os.remove(outputFile)
 
 def validate(jsonContent, certType):
     if certType == 'OV-SAN':
@@ -870,15 +875,15 @@ def cancel(args):
             enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
             else:
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            if args.cn:
-                root_logger.info('Fetching details of ' + cn +
-                                ' with enrollmentId: ' + str(enrollmentId))
-            else:
-                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+
+            root_logger.info('Trying to cancel ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+
 
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
@@ -970,15 +975,14 @@ def download(args):
             enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
             else:
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            if args.cn:
-                root_logger.info('Fetching details of ' + cn +
-                                ' with enrollmentId: ' + str(enrollmentId))
-            else:
-                root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+            root_logger.info('Downloading details of ' + cn +
+                            ' with enrollmentId: ' + str(enrollmentId))
+
 
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
