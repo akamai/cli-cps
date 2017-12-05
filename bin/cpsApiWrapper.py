@@ -197,6 +197,29 @@ class cps(object):
         getCertificateResponse = session.get(getCertificateUrl, headers=headers)
         return getCertificateResponse
 
+
+    def getDvChangeInfo(self, session, endpoint):
+        """
+        Function to Get a Certificate
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        customCallRespose : customCallRespose
+            (customCallRespose) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.dv-challenges.v2+json"
+        }
+        dvChangeInfoUrl = 'https://' + self.access_hostname + endpoint
+        dvChangeInfoResponse = session.get(dvChangeInfoUrl, headers=headers)
+        return dvChangeInfoResponse
+
+
     def customCall(self, session, endpoint):
         """
         Function to Get a Certificate

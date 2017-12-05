@@ -440,7 +440,8 @@ def status(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-            root_logger.info('Getting status for ' + cn +
+            #first you have to get the enrollment
+            root_logger.info('Getting enrollment for ' + cn +
                                 ' with enrollmentId: ' + str(enrollmentId))
 
             enrollmentDetails = cpsObject.getEnrollment(
@@ -455,17 +456,49 @@ def status(args):
                     #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
                     changeId = int(
                         enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
+                    root_logger.info('Getting change status for changeId: ' + str(changeId))
+                    #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
                     root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
                         if len(changeStatusResponseJson['allowedInput']) > 0:
-                            for everyInput in changeStatusResponseJson['allowedInput']:
+                            changeType = changeStatusResponseJson['allowedInput'][0]['type']
+                            root_logger.info('-----------------------------')
+                            root_logger.info('\nFound Change Type: ' + changeType)
+                            if changeType == 'lets-encrypt-challenges':
+                                root_logger.info('Starting lets-encrypt-challenges workflow')
+                                info = changeStatusResponseJson['allowedInput'][0]['info']
+                                root_logger.info('\nGetting change info for: ' + info)
+                                dvChangeInfoResponse = cpsObject.getDvChangeInfo(session, info)
+                                root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
+                                if dvChangeInfoResponse.status_code == 200:
+                                    dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+                                    numDomains = len(dvChangeInfoResponseJson['dv'])
+                                    if numDomains > 0:
+                                        root_logger.info('-----------------------------')
+                                        root_logger.info('\nFound ' + str(numDomains) + ' dv domains:')
+                                        table = PrettyTable(['Status', 'Domain', 'Error', 'Validation Status'])
+                                        table.align="l"
+                                        for everyDv in dvChangeInfoResponseJson['dv']:
+                                            rowData = []
+                                            rowData.append(everyDv['status'])
+                                            rowData.append(everyDv['domain'])
+                                            rowData.append(everyDv['error'])
+                                            rowData.append(everyDv['validationStatus'])
+                                            table.add_row(rowData)
+                                        root_logger.info(table)
+                            else:
+                                root_logger.info('Unknown Change Type')
+                                exit(0)
+
+
+                            '''for everyInput in changeStatusResponseJson['allowedInput']:
                                 info = everyInput['info']
                                 customResponse = cpsObject.customCall(session, info)
                                 print('\n\n')
-                                root_logger.info(json.dumps(customResponse.json(), indent=4))
+                                root_logger.info(json.dumps(customResponse.json(), indent=4))'''
 
                         '''title = ['STATUS']
                         title.append('DESCRIPTION')
@@ -766,6 +799,7 @@ def update(args):
             enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
             if enrollmentResult['found'] is True:
                 enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
             else:
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
@@ -790,7 +824,7 @@ def update(args):
                 exit(-1)
 
             if not force:
-                root_logger.info('\nYou are about to update enrollment id: ' + enrollmentId + ' and CN: ' + certificateContent['csr']['cn'] +
+                root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn +
                 '\nDo you wish to continue (Y/N)')
                 decision = input()
                 if decision == 'Y' or decision == 'y':
