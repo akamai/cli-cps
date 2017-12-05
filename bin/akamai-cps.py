@@ -478,7 +478,8 @@ def status(args):
                                     numDomains = len(dvChangeInfoResponseJson['dv'])
                                     if numDomains > 0:
                                         root_logger.info('-----------------------------')
-                                        root_logger.info('\nFound ' + str(numDomains) + ' dv domains:')
+                                        root_logger.info(
+                                            'Domain challenges received back from Let\'s Encrypt. You now must prove control over the domains by completing the challenge process (HTTP or DNS).\n')
                                         table = PrettyTable(['Status', 'Domain', 'Error', 'Validation Status'])
                                         table.align="l"
                                         for everyDv in dvChangeInfoResponseJson['dv']:
@@ -489,6 +490,13 @@ def status(args):
                                             rowData.append(everyDv['validationStatus'])
                                             table.add_row(rowData)
                                         root_logger.info(table)
+                                        root_logger.info('\nA. HTTP VALIDATION STEPS:')
+                                        root_logger.info('\nLet\'s Encrypt must validate that you control each domain listed on the certificate. To prove you have control, you must configure your web server for each individual URL for each domain on the certificate to redirect traffic to Akamai. Once Akamai detects the redirect is in place, CPS informs Let\'s Encrypt that it can validate the domains by answering the challenges correctly. Within a few hours of redirecting your traffic, Let\'s Encrypt automatically validates your domains and your certificate deploys.')
+
+                                        root_logger.info('\nB. DNS VALIDATION STEPS:')
+                                        root_logger.info('\nPlease deploy a DNS TXT record under the names below. The end results should be: \n')
+
+
                             else:
                                 root_logger.info('Unknown Change Type')
                                 exit(0)
