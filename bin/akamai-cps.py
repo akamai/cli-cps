@@ -634,7 +634,10 @@ def audit(args):
 
     with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
-            'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone\n')
+            'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
+            Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
+            Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
+            SNI, Country, State, Organization, Organization Unit \n')
     base_url, session = init_config(args.edgerc, args.section)
     cpsObject = cps(base_url)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -682,10 +685,28 @@ def audit(args):
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         Status = 'IN-PROGRESS'
+
+                    #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
+                    if enrollmentDetailsJson['networkConfiguration']['sni'] is not None:
+                        sniInfo = ''
+                        for everySan in enrollmentDetailsJson['networkConfiguration']['sni']['dnsNames']:
+                            sniInfo = sniInfo + ' ' + everySan
+                        sniInfo = '"' + sniInfo + '"'
+                    else:
+                        sniInfo = ''
+
                     with open(outputFile, 'a') as fileHandler:
-                        fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + sanList + ', ' + Status + ', ' + expiration + ', ' + enrollmentDetailsJson['validationType']
-                                          + ', ' + enrollmentDetailsJson['certificateType'] + ', ' + changeManagement + ',' + adminName + ',' + enrollmentDetailsJson['adminContact']['email'] + ', ' + enrollmentDetailsJson['adminContact']['phone']
-                                          + ', ' + techName + ',' + enrollmentDetailsJson['techContact']['email'] + ', ' + enrollmentDetailsJson['techContact']['phone'] + '\n')
+                        fileHandler.write(str(enrollmentId) + ', ' + enrollmentDetailsJson['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
+                                          + expiration + ', ' + enrollmentDetailsJson['validationType']+ ', ' + enrollmentDetailsJson['certificateType'] + ', '
+                                          + changeManagement + ',' + adminName + ',' + enrollmentDetailsJson['adminContact']['email'] + ', '
+                                          + enrollmentDetailsJson['adminContact']['phone']+ ', ' + techName + ','
+                                          + enrollmentDetailsJson['techContact']['email'] + ', ' + enrollmentDetailsJson['techContact']['phone'] + ','
+                                          + enrollmentDetailsJson['networkConfiguration']['geography'] + ',' + enrollmentDetailsJson['networkConfiguration']['secureNetwork'] + ','
+                                          + enrollmentDetailsJson['networkConfiguration']['mustHaveCiphers'] + ',' + enrollmentDetailsJson['networkConfiguration']['preferredCiphers'] + ','
+                                          + str(enrollmentDetailsJson['networkConfiguration']['disallowedTlsVersions']) + ',' + str(sniInfo) + ','
+                                          + enrollmentDetailsJson['csr']['c'] + ',' + enrollmentDetailsJson['csr']['st'] + ','
+                                          + enrollmentDetailsJson['csr']['o'] + ',' + enrollmentDetailsJson['csr']['ou'] + ','
+                                          + '\n')
                 else:
                     root_logger.debug(
                         'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
