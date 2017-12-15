@@ -488,12 +488,15 @@ def status(args):
                                         table = PrettyTable(['Domain', 'Status', 'Redirect From', 'Redirect To'])
                                         table.align="l"
                                         for everyDv in dvChangeInfoResponseJson['dv']:
+                                            #root_logger.info(json.dumps(everyDv, indent =4))
                                             rowData = []
-                                            rowData.append(everyDv['domain'])
-                                            rowData.append(everyDv['status'])
-                                            rowData.append('http://redirectFrom {fullPath}')
-                                            rowData.append('http://redirectTo {redirectFullPath}')
-                                            table.add_row(rowData)
+                                            for everyChallenge in everyDv['challenges']:
+                                                if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
+                                                    rowData.append(everyDv['domain'])
+                                                    rowData.append(everyDv['status'])
+                                                    rowData.append(everyChallenge['fullPath'])
+                                                    rowData.append(everyChallenge['redirectFullPath'])
+                                                    table.add_row(rowData)
                                         root_logger.info(table)
 
 
@@ -506,11 +509,14 @@ def status(args):
                                         table.align = "l"
                                         for everyDv in dvChangeInfoResponseJson['dv']:
                                             rowData = []
-                                            rowData.append(everyDv['domain'])
-                                            rowData.append(everyDv['status'])
-                                            rowData.append('DIG TXT {fullPath}')
-                                            rowData.append('{fullPath} 7200 IN TXT {responseBody}')
-                                            table.add_row(rowData)
+                                            rowData = []
+                                            for everyChallenge in everyDv['challenges']:
+                                                if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
+                                                    rowData.append(everyDv['domain'])
+                                                    rowData.append(everyDv['status'])
+                                                    rowData.append('DIG TXT ' + everyChallenge['fullPath'])
+                                                    rowData.append(everyChallenge['fullPath']+ '7200 IN TXT ' + everyChallenge['responseBody'])
+                                                    table.add_row(rowData)
                                         root_logger.info(table)
                             else:
                                 root_logger.info('Unknown Change Type')
