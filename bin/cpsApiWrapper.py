@@ -220,7 +220,7 @@ class cps(object):
         return dvChangeInfoResponse
 
 
-    def customCall(self, session, endpoint):
+    def customPostCall(self, session, headers, endpoint):
         """
         Function to Get a Certificate
 
@@ -234,9 +234,7 @@ class cps(object):
         customCallRespose : customCallRespose
             (customCallRespose) Object with all details
         """
-        headers = {
-            "Accept": "application/vnd.akamai.cps.csr.v1+json"
-        }
+
         customUrl = 'https://' + self.access_hostname + endpoint
-        customResponse = session.get(customUrl, headers=headers)
+        customResponse = session.post(customUrl, headers=headers)
         return customResponse
