@@ -485,6 +485,7 @@ def proceed(args):
                                 }
                                 root_logger.info("\nSending POST request to " + endpoint + "\n")
                                 customPostResponse = cpsObject.customPostCall(session, headers, endpoint)
+                                root_logger.info('Status Code ' + str(customPostResponse.status_code))
                                 root_logger.info(json.dumps(customPostResponse.json(), indent=4))
                             else:
                                 root_logger.info('Unknown Change Type')
