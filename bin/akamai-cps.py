@@ -455,7 +455,8 @@ def proceed(args):
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
                 enrollmentDetailsJson = enrollmentDetails.json()
-                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                root_logger.info('\n\n\n')
                 if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                     root_logger.info(
                         'The certificate is active, there are no current pending changes.')
@@ -467,7 +468,7 @@ def proceed(args):
                     #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
-                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
                         if len(changeStatusResponseJson['allowedInput']) > 0:
