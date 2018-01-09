@@ -1073,7 +1073,7 @@ def download(args):
             if enrollmentDetails.status_code == 200:
                 if format == 'yaml' or format == 'yml':
                     enrollmentDetailsJson = enrollmentDetails.json()
-                    Data = yaml.dump(enrollmentDetailsJson)
+                    Data = yaml.dump(enrollmentDetailsJson, default_flow_style=False)
                 else:
                     Data = json.dumps(enrollmentDetails.json(), indent=4)
 
