@@ -468,6 +468,7 @@ def proceed(args):
                     #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
+                    root_logger.info(changeStatusResponse.status_code)
                     root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
@@ -543,14 +544,15 @@ def status(args):
                     root_logger.info(
                         'The certificate is active, there are no current pending changes.')
                 elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                    #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
+                    root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
                     changeId = int(
                         enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
                     root_logger.info('Getting change status for changeId: ' + str(changeId))
                     #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
-                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    root_logger.info('\n\n\n')
+                    root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
                         if len(changeStatusResponseJson['allowedInput']) > 0:
@@ -563,7 +565,8 @@ def status(args):
                                 info = changeStatusResponseJson['allowedInput'][0]['info']
                                 root_logger.info('\nGetting change info for: ' + info)
                                 dvChangeInfoResponse = cpsObject.getDvChangeInfo(session, info)
-                                #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
+                                root_logger.info('\n\n\n')
+                                root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
                                 if dvChangeInfoResponse.status_code == 200:
                                     dvChangeInfoResponseJson = dvChangeInfoResponse.json()
                                     numDomains = len(dvChangeInfoResponseJson['dv'])
