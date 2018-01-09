@@ -162,6 +162,13 @@ def cli():
         [{"name": "file",
           "help": "Input filename from templates folder to read certificate/enrollment details"}])
 
+    actions["proceed"] = create_sub_command(
+        subparsers, "proceed",
+        "Proceed further acknowledging Certificate",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+         None)
+
     actions["download"] = create_sub_command(
         subparsers, "download", "Download Enrollment data in yaml format to a file",
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
@@ -416,6 +423,88 @@ def show(args):
                 'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
+def proceed(args):
+    if not args.cn and not args.enrollmentId:
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
+        exit(-1)
+    cn = args.cn
+    enrollmentsPath = os.path.join('setup')
+    base_url, session = init_config(args.edgerc, args.section)
+    cpsObject = cps(base_url)
+    for root, dirs, files in os.walk(enrollmentsPath):
+        localEnrollmentsFile = 'enrollments.json'
+        if localEnrollmentsFile in files:
+            with open(os.path.join(enrollmentsPath, localEnrollmentsFile), mode='r') as enrollmentsFileHandler:
+                enrollmentsStringContent = enrollmentsFileHandler.read()
+            # root_logger.info(policyStringContent)
+            enrollmentsJsonContent = json.loads(enrollmentsStringContent)
+
+            enrollmentResult = checkEnrollmentID(args, enrollmentsJsonContent)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
+            else:
+                root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
+                exit(0)
+
+            #first you have to get the enrollment
+            root_logger.info('Proceeding further for ' + cn +
+                                ' with enrollmentId: ' + str(enrollmentId))
+
+            enrollmentDetails = cpsObject.getEnrollment(
+                session, enrollmentId)
+            if enrollmentDetails.status_code == 200:
+                enrollmentDetailsJson = enrollmentDetails.json()
+                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
+                    root_logger.info(
+                        'The certificate is active, there are no current pending changes.')
+                elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
+                    #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
+                    changeId = int(
+                        enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
+                    root_logger.info('\nGetting change status for changeId: ' + str(changeId))
+                    #second you have to get the pending change array, and then call get change status with the change id
+                    changeStatusResponse = cpsObject.getChangeStatus(
+                        session, enrollmentId, changeId)
+                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    if changeStatusResponse.status_code == 200:
+                        changeStatusResponseJson = changeStatusResponse.json()
+                        if len(changeStatusResponseJson['allowedInput']) > 0:
+                            # if there is something in allowedInput, there is something to do?
+                            changeType = changeStatusResponseJson['allowedInput'][0]['type']
+                            root_logger.info('-----------------------------')
+                            root_logger.info('\nFound Change Type: ' + changeType)
+                            if changeType == 'lets-encrypt-challenges':
+                                endpoint = changeStatusResponseJson['allowedInput'][0]['update']
+                                headers = {
+                                    "Content-Type": "application/vnd.akamai.cps.acknowledgement.v1+json",
+                                    "Accept": "application/vnd.akamai.cps.change-id.v1+json"
+                                }
+                                root_logger.info("\nSending POST request to " + endpoint + "\n")
+                                customPostResponse = cpsObject.customPostCall(session, headers, endpoint)
+                                root_logger.info(json.dumps(customPostResponse.json(), indent=4))
+                            else:
+                                root_logger.info('Unknown Change Type')
+                                exit(0)
+                    else:
+                        root_logger.info(
+                            'Unable to determine change status.')
+                        exit(-1)
+                else:
+                    root_logger.info(
+                        'Unable to determine change status.')
+                    exit(-1)
+
+            else:
+                root_logger.info(
+                    'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                exit(-1)
+        else:
+            root_logger.info(
+                'Unable to find enrollments.json file. Try to run -setup.')
+            exit(-1)
+
 def status(args):
     if not args.cn and not args.enrollmentId:
         root_logger.info('Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
@@ -460,7 +549,7 @@ def status(args):
                     #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
-                    root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
                         if len(changeStatusResponseJson['allowedInput']) > 0:
@@ -469,11 +558,11 @@ def status(args):
                             root_logger.info('-----------------------------')
                             root_logger.info('\nFound Change Type: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
-                                root_logger.info('Starting lets-encrypt-challenges workflow')
+                                root_logger.info('\nStarting lets-encrypt-challenges workflow')
                                 info = changeStatusResponseJson['allowedInput'][0]['info']
                                 root_logger.info('\nGetting change info for: ' + info)
                                 dvChangeInfoResponse = cpsObject.getDvChangeInfo(session, info)
-                                root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
+                                #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
                                 if dvChangeInfoResponse.status_code == 200:
                                     dvChangeInfoResponseJson = dvChangeInfoResponse.json()
                                     numDomains = len(dvChangeInfoResponseJson['dv'])
