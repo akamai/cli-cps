@@ -54,7 +54,7 @@ class cps(object):
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
         createEnrollmentUrl = 'https://' + self.access_hostname + \
-            '/cps/v2/enrollments?contractId=' + contractId + '&deploy-not-after=2020-01-01&deploy-not-before=2018-01-01'
+            '/cps/v2/enrollments?contractId=' + contractId
         createEnrollmentResponse = session.post(
             createEnrollmentUrl, data=data, headers=headers)
         return createEnrollmentResponse
@@ -78,7 +78,7 @@ class cps(object):
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
         updateEnrollmentUrl = 'https://' + self.access_hostname + \
-            '/cps/v2/enrollments/' + str(enrollmentId) + '?allow-cancel-pending-changes=true&deploy-not-after=2018-01-01&deploy-not-before=2017-01-01'
+            '/cps/v2/enrollments/' + str(enrollmentId) + '?allow-cancel-pending-changes=true'
         updateEnrollmentResponse = session.put(
             updateEnrollmentUrl, data=data, headers=headers)
         return updateEnrollmentResponse
