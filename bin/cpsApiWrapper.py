@@ -54,7 +54,7 @@ class cps(object):
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
         createEnrollmentUrl = 'https://' + self.access_hostname + \
-            '/cps/v2/enrollments?contractId=' + contractId
+            '/cps/v2/enrollments?contractId=' + contractId + '&deploy-not-after=2020-01-01&deploy-not-before=2018-01-01'
         createEnrollmentResponse = session.post(
             createEnrollmentUrl, data=data, headers=headers)
         return createEnrollmentResponse
