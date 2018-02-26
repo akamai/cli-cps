@@ -15,7 +15,7 @@ Copyright 2017 Akamai Technologies, Inc. All Rights Reserved.
 """
 This code leverages akamai OPEN API. to control Certificates deployed in Akamai Network.
 In case you need quick explanation contact the initiators.
-Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com, bdutia@akamai.com
+Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com
 """
 
 import json
@@ -178,7 +178,8 @@ def cli():
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an ongoing Enrollment",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+        [{"name": "force", "help": "Skip the stdout display and user confirmation"},
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
          {"name": "cn", "help": "Common Name of certificate"}],
          None)
 
@@ -680,9 +681,9 @@ def list(args):
             # Find number of groups using len function
             totalEnrollments = len(enrollmentsJson['enrollments'])
             root_logger.info(str(totalEnrollments) + ' total enrollments found.')
-            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', ])
+            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','(**)In-Progress','Test on Staging First', ])
             if args.showExpiration:
-                table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','In-Progress','Test on Staging First', 'Expiration'])
+                table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','(**)In-Progress','Test on Staging First', 'Expiration'])
                 root_logger.info('\nFetching list with production expiration dates. Please wait... \n')
             table.align ="l"
             count = 0
@@ -701,7 +702,13 @@ def list(args):
                     else:
                         pass
                     enrollmentId = everyEnrollment['location'].split('/')[-1]
-                    rowData.append(enrollmentId)
+                    #Checking pending changes to add star mark
+                    if 'pendingChanges' in everyEnrollment:
+                        if len(everyEnrollment['pendingChanges']) > 0:
+                            rowData.append('(**)' + str(enrollmentId))
+                        else:
+                            rowData.append(enrollmentId)
+                    #rowData.append(enrollmentId
                     rowData.append(cn)
                     certificateType = everyEnrollment['validationType']
                     if certificateType != 'third-party':
@@ -710,7 +717,7 @@ def list(args):
                     #rowData.append(everyEnrollment['certificateType'])
                     if 'pendingChanges' in everyEnrollment:
                         if len(everyEnrollment['pendingChanges']) > 0:
-                            rowData.append('Yes')
+                            rowData.append('(**)Yes')
                         else:
                             rowData.append('No')
                     if 'changeManagement' in everyEnrollment:
@@ -736,6 +743,7 @@ def list(args):
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName + ' is not found in templates folder. Exiting.\n')
         exit(1)
+    root_logger.info('\n(**) --> Indicates that there are some pending changes in enrollment\n')
 
 def audit(args):
     if args.outputfile:
@@ -1094,53 +1102,50 @@ def cancel(args):
                 #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                 if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                     root_logger.info(
-                        'The certificate is active, there are no current pending changes.')
+                        'The certificate is active, there are no current pending changes to cancel.')
                 elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                    changeId = int(
-                        enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
-                    changeStatusResponse = cpsObject.getChangeStatus(
-                        session, enrollmentId, changeId)
-                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
-                    if changeStatusResponse.status_code == 200:
-                        changeStatusResponseJson = changeStatusResponse.json()
-                        title = ['STATUS']
-                        title.append('DESCRIPTION')
-                        title.append('ERROR')
-                        table = PrettyTable(title)
-                        if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
-                            table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
-                                          'statusInfo']['description'], changeStatusResponseJson['error']['description'])
-                        else:
-                            # There is no error
-                            table_row_data = [changeStatusResponseJson['statusInfo']['status']]
-                            table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
-                            table_row_data.append('No Error')
-                            table.add_row(table_row_data)
-                        root_logger.info(table)
-
-                        root_logger.info('Cancelling the request with change ID: ' + str(changeId))
-                        cancelChangeResponse = cpsObject.cancelChange(session, enrollmentId, changeId)
-                        if cancelChangeResponse.status_code == 200:
-                            root_logger.info('Cancellation successful')
-                        else:
-                            root_logger.info('Cancellation is NOT successful')
-
+                    if not args.force:
+                        root_logger.info('You are about to cancel the pending change for CN: ' +
+                                        cn + ' with enrollmentId: ' + str(enrollmentId) + '.\n' +
+                                        'If the certificate has never been active, this will also remove the enrollment.' +
+                                        ' \nDo you wish to continue? (Y/N)')
+                        decision = input()
                     else:
-                        root_logger.info(
-                            'Unable to determine change status.')
+                        decision = 'y'
+
+                    #check the decision flag
+                    if decision == 'y' or decision == 'Y':
+                        changeId = int(
+                            enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
+                        changeStatusResponse = cpsObject.getChangeStatus(
+                            session, enrollmentId, changeId)
+                        #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                        if changeStatusResponse.status_code == 200:
+                            changeStatusResponseJson = changeStatusResponse.json()
+                            root_logger.info('\nCancelling the request with change ID: ' + str(changeId))
+                            cancelChangeResponse = cpsObject.cancelChange(session, enrollmentId, changeId)
+                            if cancelChangeResponse.status_code == 200:
+                                root_logger.info('\nCancellation successful')
+                            else:
+                                root_logger.info('\nCancellation is NOT successful')
+                        else:
+                            root_logger.info(
+                                '\nUnable to determine change status.')
                         exit(-1)
+                    else:
+                        root_logger.info('\nExiting based on your decision not to proceed.\n')
                 else:
                     root_logger.info(
-                        'Unable to determine change status.')
+                        '\nUnable to determine change status.')
                     exit(-1)
 
             else:
                 root_logger.info(
-                    'Status Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
+                    '\nStatus Code: ' + str(enrollmentDetails.status_code) + '. Unable to fetch Certificate details.')
                 exit(-1)
         else:
             root_logger.info(
-                'Unable to find enrollments.json file. Try to run -setup.')
+                '\nUnable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
 def download(args):
