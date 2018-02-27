@@ -681,9 +681,9 @@ def list(args):
             # Find number of groups using len function
             totalEnrollments = len(enrollmentsJson['enrollments'])
             root_logger.info(str(totalEnrollments) + ' total enrollments found.')
-            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','(**)In-Progress','Test on Staging First', ])
+            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','*In-Progress*','Test on Staging First', ])
             if args.showExpiration:
-                table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','(**)In-Progress','Test on Staging First', 'Expiration'])
+                table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)', 'Certificate Type','*In-Progress*','Test on Staging First', 'Expiration'])
                 root_logger.info('\nFetching list with production expiration dates. Please wait... \n')
             table.align ="l"
             count = 0
@@ -705,7 +705,7 @@ def list(args):
                     #Checking pending changes to add star mark
                     if 'pendingChanges' in everyEnrollment:
                         if len(everyEnrollment['pendingChanges']) > 0:
-                            rowData.append('(**)' + str(enrollmentId))
+                            rowData.append('*' + str(enrollmentId) + '*')
                         else:
                             rowData.append(enrollmentId)
                     #rowData.append(enrollmentId
@@ -717,7 +717,7 @@ def list(args):
                     #rowData.append(everyEnrollment['certificateType'])
                     if 'pendingChanges' in everyEnrollment:
                         if len(everyEnrollment['pendingChanges']) > 0:
-                            rowData.append('(**)Yes')
+                            rowData.append('*Yes*')
                         else:
                             rowData.append('No')
                     if 'changeManagement' in everyEnrollment:
@@ -743,7 +743,7 @@ def list(args):
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName + ' is not found in templates folder. Exiting.\n')
         exit(1)
-    root_logger.info('\n(**) --> Indicates that there are some pending changes in enrollment\n')
+    root_logger.info('\n** means enrollment has existing pending changes\n')
 
 def audit(args):
     if args.outputfile:
@@ -1090,11 +1090,6 @@ def cancel(args):
                 root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment id.')
                 exit(0)
 
-
-            root_logger.info('Trying to cancel ' + cn +
-                            ' with enrollmentId: ' + str(enrollmentId))
-
-
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
@@ -1133,7 +1128,7 @@ def cancel(args):
                                 '\nUnable to determine change status.')
                         exit(-1)
                     else:
-                        root_logger.info('\nExiting based on your decision not to proceed.\n')
+                        root_logger.info('\nExiting...\n')
                 else:
                     root_logger.info(
                         '\nUnable to determine change status.')
