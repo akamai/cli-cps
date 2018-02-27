@@ -991,6 +991,7 @@ def update(args):
                     if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                         root_logger.info(
                             'The certificate is active, there are no current pending changes.')
+                        exit(0)    
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
                         root_logger.info('\nThere already exists a pending change - would you like to override?' +
