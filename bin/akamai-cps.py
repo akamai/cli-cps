@@ -978,77 +978,73 @@ def update(args):
                 exit(-1)
 
             if not force:
-                root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn +
-                '\nDo you wish to continue (Y/N)')
-                decision = input()
-                if decision == 'Y' or decision == 'y':
-                    #first you have to get the enrollment
-                    root_logger.info('Getting enrollment for ' + cn +
-                                        ' with enrollmentId: ' + str(enrollmentId))
+                root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn )
+                #first you have to get the enrollment
+                root_logger.info('Getting enrollment for ' + cn +
+                                    ' with enrollmentId: ' + str(enrollmentId))
 
-                    enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)
-                    if enrollmentDetails.status_code == 200:
-                        enrollmentDetailsJson = enrollmentDetails.json()
-                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                        if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                            root_logger.info(
-                                'The certificate is active, there are no current pending changes.')
-                        elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                            root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
-                            root_logger.info('\nThere already exists a pending change - would you like to override?' +
-                                                ' This will cancel the existing change and apply the new update.' +
-                                                ' \nPress (Y/N) to continue')
-                            decision = input()
+                enrollmentDetails = cpsObject.getEnrollment(
+                    session, enrollmentId)
+                if enrollmentDetails.status_code == 200:
+                    enrollmentDetailsJson = enrollmentDetails.json()
+                    #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                    if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
+                        root_logger.info(
+                            'The certificate is active, there are no current pending changes.')
+                    elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
+                        root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
+                        root_logger.info('\nThere already exists a pending change - would you like to override?' +
+                                            ' This will cancel the existing change and apply the new update.' +
+                                            ' \nPress (Y/N) to continue')
+                        decision = input()
 
-                    #compare the data
-                    '''if args.cn:
-                        root_logger.info('Fetching details of ' + cn +
-                                        ' with enrollmentId: ' + str(enrollmentId))
-                    else:
-                        root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
-                    enrollmentDetails = cpsObject.getEnrollment(
-                        session, enrollmentId)'''
-
-                    #Commenting the enrollment fetch call to compare
-                    '''if enrollmentDetails.status_code == 200:
-                        enrollmentDetailsJson = enrollmentDetails.json()
-                        #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                        #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
-                        listOfPatches = jsonpatch.JsonPatch.from_diff(enrollmentDetailsJson,jsonFormattedContent)
-                        table = PrettyTable(['Op', 'Path', 'Value'])
-                        table.align ="l"
-                        for everyPatch in listOfPatches:
-                            #root_logger.info(everyPatch)
-                            rowData = []
-                            action = everyPatch['op']
-                            rowData.append(action)
-                            attribute = everyPatch['path']
-                            #attribute = attribute.replace('/','-->')
-                            #attribute = attribute.replace('-->','',1)
-                            rowData.append(attribute)
-                            if 'value' in everyPatch:
-                                attributeValue = everyPatch['value']
-                            else:
-                                attributeValue = ''
-                            rowData.append(attributeValue)
-                            if action != 'move':
-                                if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
-                                and 'location' not in attribute:
-                                    table.add_row(rowData)
-                            #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
-                        root_logger.info('\nFollowing are the differences \n')
-                        root_logger.info(table)
-
-                    else:
-                        root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
-                        exit(1)'''
+                #compare the data
+                '''if args.cn:
+                    root_logger.info('Fetching details of ' + cn +
+                                    ' with enrollmentId: ' + str(enrollmentId))
                 else:
-                    #User pressed N so just go ahead, we will exit program down below
-                    pass
+                    root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
+                enrollmentDetails = cpsObject.getEnrollment(
+                    session, enrollmentId)'''
+
+                #Commenting the enrollment fetch call to compare
+                '''if enrollmentDetails.status_code == 200:
+                    enrollmentDetailsJson = enrollmentDetails.json()
+                    #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                    #root_logger.info(diff(jsonFormattedContent, enrollmentDetailsJson))
+                    listOfPatches = jsonpatch.JsonPatch.from_diff(enrollmentDetailsJson,jsonFormattedContent)
+                    table = PrettyTable(['Op', 'Path', 'Value'])
+                    table.align ="l"
+                    for everyPatch in listOfPatches:
+                        #root_logger.info(everyPatch)
+                        rowData = []
+                        action = everyPatch['op']
+                        rowData.append(action)
+                        attribute = everyPatch['path']
+                        #attribute = attribute.replace('/','-->')
+                        #attribute = attribute.replace('-->','',1)
+                        rowData.append(attribute)
+                        if 'value' in everyPatch:
+                            attributeValue = everyPatch['value']
+                        else:
+                            attributeValue = ''
+                        rowData.append(attributeValue)
+                        if action != 'move':
+                            if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
+                            and 'location' not in attribute:
+                                table.add_row(rowData)
+                        #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
+                    root_logger.info('\nFollowing are the differences \n')
+                    root_logger.info(table
+
+                else:
+                    root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
+                    exit(1)'''
             #User passed --force so just go ahead by selecting Y
             else:
+                #This is --force mode, so hardcode decision to y
                 decision = 'y'
+
             if decision == 'y' or decision == 'Y':
                 root_logger.info('\nTrying to update enrollment...\n')
                 updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
