@@ -128,69 +128,68 @@ def cli():
     actions["setup"] = create_sub_command(
         subparsers,
         "setup",
-        "Initial setup to download all necessary policy "
-        "information")
+        "Initial setup to download all necessary enrollment info ")
 
     actions["audit"] = create_sub_command(
-        subparsers, "audit", "A report of all enrollments in CSV format",
+        subparsers, "audit", "Generate a report in xlsx format",
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"}])
 
     actions["show"] = create_sub_command(
         subparsers, "show",
-        "Display details of Certificate",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+        "Display details of an enrollment",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
          None)
 
     actions["create"] = create_sub_command(
         subparsers, "create",
-        "Create a new certificate, reading input from input yaml file. "
-        "(Use --file to specify "
-        "name of inputfile)",
+        "Create a new enrollment from a yaml or json input file "
+        "(Use --file to specify the filename)",
         [{"name": "force",
            "help": "No value"}],
         [{"name": "file",
-          "help": "Input filename from templates folder to read certificate/enrollment details"}])
+          "help": "Input filename from templates folder to read enrollment details"}])
 
     actions["update"] = create_sub_command(
         subparsers, "update",
-        "Update a certificate, reading input from input yaml file. "
-        "(Optionally, use --file to specify ",
+        "Update an enrollment from a yaml or json input file. "
+        "(Use --file to specify the filename",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
-         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of Certificate to update"}],
         [{"name": "file",
-          "help": "Input filename from templates folder to read certificate/enrollment details"}])
+          "help": "Input filename from templates folder to read enrollment details"}])
 
     actions["proceed"] = create_sub_command(
         subparsers, "proceed",
-        "Proceed further acknowledging Certificate",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+        "Proceed with the next step on the enrollment",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
          None)
 
     actions["download"] = create_sub_command(
-        subparsers, "download", "Download Enrollment data in yaml format to a file",
+        subparsers, "download", 
+        "Download enrollment data to a yaml or json file",
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
-         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         [{"name": "format", "help": "Accepted values are json OR yaml"}])
 
     actions["cancel"] = create_sub_command(
-        subparsers, "cancel", "Cancel an ongoing Enrollment",
+        subparsers, "cancel", "Cancel an enrollment",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
-         {"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+         {"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
          None)
 
     actions["status"] = create_sub_command(
-        subparsers, "status", "Fetch the current Status of Enrollment/Certificate",
-        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment/certificate"},
+        subparsers, "status", "Get any current change status for an enrollment",
+        [{"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
          None)
 
     actions["list"] = create_sub_command(
-        subparsers, "list", "List all Enrollments or Certificates",
+        subparsers, "list", "List all enrollments",
         [{"name": "showExpiration", "help": "shows expiration date of the enrollment"}],
          None)
 
@@ -541,7 +540,7 @@ def status(args):
                 exit(0)
 
             #first you have to get the enrollment
-            root_logger.info('Getting enrollment for ' + cn +
+            root_logger.info('\nGetting enrollment for ' + cn +
                                 ' with enrollmentId: ' + str(enrollmentId))
 
             enrollmentDetails = cpsObject.getEnrollment(
@@ -553,24 +552,22 @@ def status(args):
                     root_logger.info(
                         'The certificate is active, there are no current pending changes.')
                 elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
-                    root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
+                    #root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
                     changeId = int(
                         enrollmentDetailsJson['pendingChanges'][0].split('/')[-1])
                     root_logger.info('Getting change status for changeId: ' + str(changeId))
                     #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
-                    root_logger.info('\n\n\n')
-                    root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
                         if len(changeStatusResponseJson['allowedInput']) > 0:
-                            # if there is something in allowedInput, there is something to do?
+                            # if there is something in allowedInput, there is something to do
                             changeType = changeStatusResponseJson['allowedInput'][0]['type']
-                            root_logger.info('-----------------------------')
+                            #root_logger.info('-----------------------------')
                             root_logger.info('\nFound Change Type: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
-                                root_logger.info('\nStarting lets-encrypt-challenges workflow')
                                 info = changeStatusResponseJson['allowedInput'][0]['info']
                                 root_logger.info('\nGetting change info for: ' + info)
                                 dvChangeInfoResponse = cpsObject.getDvChangeInfo(session, info)
@@ -621,30 +618,11 @@ def status(args):
                                                     table.add_row(rowData)
                                         root_logger.info(table)
                             else:
-                                root_logger.info('Unknown Change Type')
+                                root_logger.info('Unsupported Change Type at this time: ' + changeType)
                                 exit(0)
-
-
-                            '''for everyInput in changeStatusResponseJson['allowedInput']:
-                                info = everyInput['info']
-                                customResponse = cpsObject.customCall(session, info)
-                                print('\n\n')
-                                root_logger.info(json.dumps(customResponse.json(), indent=4))'''
-
-                        '''title = ['STATUS']
-                        title.append('DESCRIPTION')
-                        title.append('ERROR')
-                        table = PrettyTable(title)
-                        if 'error' in changeStatusResponseJson and changeStatusResponseJson['error'] is not None:
-                            table.add_row(changeStatusResponseJson['statusInfo']['status'], changeStatusResponseJson[
-                                          'statusInfo']['description'], changeStatusResponseJson['error']['description'])
-                        else:
-                            # There is no error
-                            table_row_data = [changeStatusResponseJson['statusInfo']['status']]
-                            table_row_data.append(changeStatusResponseJson['statusInfo']['description'])
-                            table_row_data.append('No Error')
-                            table.add_row(table_row_data)
-                        root_logger.info(table)'''
+                        #have a change status object, but no allowed input data, try again later?
+                        root_logger.info('Found pending changes, but next validation steps are not ready yet. Please check back later...')
+                        exit(0)
                     else:
                         root_logger.info(
                             'Unable to determine change status.')
