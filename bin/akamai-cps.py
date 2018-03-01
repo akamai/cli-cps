@@ -451,18 +451,18 @@ def proceed(args):
                 exit(0)
 
             #first you have to get the enrollment
-            root_logger.info('Proceeding further for ' + cn +
+            root_logger.info('\nProceeding with next steps for ' + cn +
                                 ' with enrollmentId: ' + str(enrollmentId))
 
             enrollmentDetails = cpsObject.getEnrollment(
                 session, enrollmentId)
             if enrollmentDetails.status_code == 200:
                 enrollmentDetailsJson = enrollmentDetails.json()
-                root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
-                root_logger.info('\n\n\n')
+                #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
+                #root_logger.info('\n\n\n')
                 if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
                     root_logger.info(
-                        'The certificate is active, there are no current pending changes.')
+                        'The certificate is active, there are no current pending changes to proceed with.\n')
                 elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                     #root_logger.info(json.dumps(enrollmentDetailsJson, indent=4))
                     changeId = int(
@@ -471,14 +471,13 @@ def proceed(args):
                     #second you have to get the pending change array, and then call get change status with the change id
                     changeStatusResponse = cpsObject.getChangeStatus(
                         session, enrollmentId, changeId)
-                    root_logger.info(changeStatusResponse.status_code)
-                    root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
+                    #root_logger.info(changeStatusResponse.status_code)
+                    #root_logger.info(json.dumps(changeStatusResponse.json(), indent=4))
                     if changeStatusResponse.status_code == 200:
                         changeStatusResponseJson = changeStatusResponse.json()
                         if len(changeStatusResponseJson['allowedInput']) > 0:
                             # if there is something in allowedInput, there is something to do?
                             changeType = changeStatusResponseJson['allowedInput'][0]['type']
-                            root_logger.info('-----------------------------')
                             root_logger.info('\nFound Change Type: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
                                 endpoint = changeStatusResponseJson['allowedInput'][0]['update']
@@ -486,10 +485,16 @@ def proceed(args):
                                     "Content-Type": "application/vnd.akamai.cps.acknowledgement.v1+json",
                                     "Accept": "application/vnd.akamai.cps.change-id.v1+json"
                                 }
-                                root_logger.info("\nSending POST request to " + endpoint + "\n")
+                                root_logger.info("Trying to update change...")
+                                #root_logger.info("\nSending POST request to " + endpoint + "\n")
                                 customPostResponse = cpsObject.customPostCall(session, headers, endpoint)
-                                root_logger.info('Status Code ' + str(customPostResponse.status_code))
-                                root_logger.info(json.dumps(customPostResponse.json(), indent=4))
+                                if customPostResponse.status_code == 200:
+                                    root_logger.info('Update successful...')
+                                else:
+                                    root_logger.info('Unknown Error')
+                                    root_logger.info('\nResponse Code: ' + str(customPostResponse.status_code))
+                                    root_logger.info('Response Body:')
+                                    root_logger.info(json.dumps(customPostResponse.json(), indent=4))
                             else:
                                 root_logger.info('Unknown Change Type')
                                 exit(0)
@@ -508,7 +513,7 @@ def proceed(args):
                 exit(-1)
         else:
             root_logger.info(
-                'Unable to find enrollments.json file. Try to run -setup.')
+                'Unable to find enrollments.json file. Try to run \'setup\'')
             exit(-1)
 
 def status(args):
@@ -837,7 +842,7 @@ def audit(args):
                         'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollmentDetails.json(), indent=4))
-            root_logger.info('\nDone! Output file written here: ' + outputFile)
+            root_logger.info('\nDone! Output file written here: ' + xlsxFile)
 
             # Merge CSV files into XLSX
             workbook = Workbook(os.path.join(xlsxFile))
@@ -919,6 +924,7 @@ def create(args):
                 root_logger.info('Successfully created Enrollment...')
                 root_logger.info('\nRunning setup to refresh local cache...\n')
                 setup(args)
+                root_logger.info('Done...')
         else:
             root_logger.info('Exiting...')
             exit(0)
