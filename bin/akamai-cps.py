@@ -978,23 +978,18 @@ def update(args):
                 exit(-1)
 
             if not force:
-                root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn )
-                #first you have to get the enrollment
-                root_logger.info('Getting enrollment for ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
-
                 enrollmentDetails = cpsObject.getEnrollment(
                     session, enrollmentId)
                 if enrollmentDetails.status_code == 200:
                     enrollmentDetailsJson = enrollmentDetails.json()
                     #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                     if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                        root_logger.info(
-                            'The certificate is active, there are no current pending changes.')
-                        decision = 'y'     
+                        root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn + 
+                        ' \nDo you wish to continue? (Y/N)')
+                        decision = input()     
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
-                        root_logger.info('\nThere already exists a pending change - would you like to override?' +
+                        root_logger.info('\nThere already exists a pending change for enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn + '\nWould you like to override?' +
                                             ' This will cancel the existing change and apply the new update.' +
                                             ' \nPress (Y/N) to continue')
                         decision = input()
@@ -1051,9 +1046,9 @@ def update(args):
                 updateEnrollmentResponse = cpsObject.updateEnrollment(session, enrollmentId, data=updateJsonContent)
                 if updateEnrollmentResponse.status_code == 200:
                     root_logger.info('Update successful. This change does not require a new certificate deployment' +
-                                     ' and will take effect the next time one is triggered..')
+                                     ' and will take effect on the next deployment. \nRun \'status\' to get updated progress details.')
                 elif updateEnrollmentResponse.status_code == 202:
-                    root_logger.info('Update successful. This change will trigger a new certificate deployment')
+                    root_logger.info('Update successful. This change will trigger a new certificate deployment.  \nRun \'status\' to get updated progress details.')
                 else:
                     root_logger.info('Unable to update due to the below reason:\n')
                     root_logger.info(json.dumps(updateEnrollmentResponse.json(), indent=4))
