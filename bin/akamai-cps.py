@@ -623,9 +623,10 @@ def status(args):
                             else:
                                 root_logger.info('Unsupported Change Type at this time: ' + changeType)
                                 exit(0)
-                        #have a change status object, but no allowed input data, try again later?
-                        root_logger.info('Found pending changes, but next validation steps are not ready yet. Please check back later...')
-                        exit(0)
+                        else:
+                            #have a change status object, but no allowed input data, try again later?
+                            root_logger.info('Found pending changes, but next validation steps are not ready yet. Please check back later...')
+                            exit(0)
                     else:
                         root_logger.info(
                             'Unable to determine change status.')
@@ -904,7 +905,7 @@ def create(args):
                 root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
             else:
                 root_logger.info('Successfully created Enrollment...')
-                root_logger.info('\nRefreshing local cache...\n')
+                root_logger.info('\nRefreshing local cache...')
                 setup(args,invoker='create')
                 root_logger.info('Done...')
         else:
