@@ -168,7 +168,7 @@ def cli():
          None)
 
     actions["download"] = create_sub_command(
-        subparsers, "download", 
+        subparsers, "download",
         "Download enrollment data to a yaml or json file",
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
          {"name": "enrollmentId", "help": "enrollmentId of the enrollment"},
@@ -322,7 +322,7 @@ def checkEnrollmentID(args, enrollmentsJsonContent):
 
     return enrollmentResult
 
-def setup(args):
+def setup(args,invoker='default'):
     #root_logger.info('Setting up required files.... please wait')
     #root_logger.info('\nDetermining the contracts available.')
     # Create the wrapper object to make calls
@@ -349,8 +349,9 @@ def setup(args):
 
     for everyContract in contractIds.json()['contracts']['items']:
         contractId = everyContract['contractId'].split('_')[1]
-        root_logger.info(
-            '\nProcessing Enrollments under contract: ' + contractId)
+        if invoker == 'default':
+            root_logger.info(
+                '\nProcessing Enrollments under contract: ' + contractId)
         enrollmentsResponse = cpsObject.listEnrollments(
             session, contractId)
         if enrollmentsResponse.status_code == 200:
@@ -358,7 +359,8 @@ def setup(args):
                 enrollmentsJson = enrollmentsResponse.json()
                 # Find number of groups using len function
                 totalEnrollments = len(enrollmentsJson['enrollments'])
-                root_logger.info(str(totalEnrollments) + ' total enrollments found.')
+                if invoker == 'default':
+                    root_logger.info(str(totalEnrollments) + ' total enrollments found.')
                 if (totalEnrollments > 0):
                     for everyEnrollment in enrollmentsJson['enrollments']:
                         enrollmentInfo = {}
@@ -379,7 +381,8 @@ def setup(args):
             # Cannot exit here as there might be other contracts which might
             # have enrollments
             # exit(-1)
-    root_logger.info('\nEnrollments details are stored in ' + '"' +
+    if invoker == 'default':
+        root_logger.info('\nEnrollments details are stored in ' + '"' +
                      os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
 
 def show(args):
@@ -778,7 +781,7 @@ def audit(args):
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
                     sanCount = len(enrollmentDetailsJson['csr']['sans'])
-                    sanList = str(enrollmentDetailsJson['csr']['sans']).replace(',','').replace('[','').replace(']','').replace("'",'')
+                    sanList = str(enrollmentDetailsJson['csr']['sans']).replace(',','').replace('[','').replace(']','')
                     if sanCount <= 1:
                             sanList = ''
                     changeManagement = str(enrollmentDetailsJson['changeManagement'])
@@ -786,6 +789,7 @@ def audit(args):
                         changeManagement = 'yes'
                     else:
                         changeManagement = 'no'
+                    disallowedTlsVersions = str(enrollmentDetailsJson['networkConfiguration']['disallowedTlsVersions']).replace(',','').replace('[','').replace(']','')
                     Status = 'UNKNOWN'
                     adminName = enrollmentDetailsJson['adminContact']['firstName'] + ' ' + enrollmentDetailsJson['adminContact']['lastName']
                     techName = enrollmentDetailsJson['techContact']['firstName'] + ' ' + enrollmentDetailsJson['techContact']['lastName']
@@ -811,7 +815,7 @@ def audit(args):
                                           + enrollmentDetailsJson['techContact']['email'] + ', ' + enrollmentDetailsJson['techContact']['phone'] + ','
                                           + enrollmentDetailsJson['networkConfiguration']['geography'] + ',' + enrollmentDetailsJson['networkConfiguration']['secureNetwork'] + ','
                                           + enrollmentDetailsJson['networkConfiguration']['mustHaveCiphers'] + ',' + enrollmentDetailsJson['networkConfiguration']['preferredCiphers'] + ','
-                                          + str(enrollmentDetailsJson['networkConfiguration']['disallowedTlsVersions']) + ',' + str(sniInfo) + ','
+                                          + disallowedTlsVersions + ',' + str(sniInfo) + ','
                                           + enrollmentDetailsJson['csr']['c'] + ',' + enrollmentDetailsJson['csr']['st'] + ','
                                           + enrollmentDetailsJson['csr']['o'] + ',' + enrollmentDetailsJson['csr']['ou'] + ','
                                           + '\n')
@@ -900,8 +904,8 @@ def create(args):
                 root_logger.info(json.dumps(createEnrollmentResponse.json(), indent = 4))
             else:
                 root_logger.info('Successfully created Enrollment...')
-                root_logger.info('\nRunning setup to refresh local cache...\n')
-                setup(args)
+                root_logger.info('\nRefreshing local cache...\n')
+                setup(args,invoker='create')
                 root_logger.info('Done...')
         else:
             root_logger.info('Exiting...')
@@ -968,9 +972,9 @@ def update(args):
                     enrollmentDetailsJson = enrollmentDetails.json()
                     #root_logger.info(json.dumps(enrollmentDetails.json(), indent=4))
                     if 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) == 0:
-                        root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn + 
+                        root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn +
                         ' \nDo you wish to continue? (Y/N)')
-                        decision = input()     
+                        decision = input()
                     elif 'pendingChanges' in enrollmentDetailsJson and len(enrollmentDetailsJson['pendingChanges']) > 0:
                         root_logger.debug(json.dumps(enrollmentDetailsJson, indent=4))
                         root_logger.info('\nThere already exists a pending change for enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn + '\nWould you like to override?' +
