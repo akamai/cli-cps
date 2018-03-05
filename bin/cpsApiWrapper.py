@@ -17,7 +17,7 @@ class cps(object):
     def __init__(self, access_hostname):
         self.access_hostname = access_hostname
 
-    def getContracts(self, session):
+    def get_contracts(self, session):
         """
         Function to fetch all contracts
 
@@ -28,14 +28,14 @@ class cps(object):
 
         Returns
         -------
-        contractsResponse : contractsResponse
-            (contractsResponse) Object with all details
+        contracts_response : contracts_response
+            (contracts_response) Object with all details
         """
-        contractsUrl = 'https://' + self.access_hostname + '/papi/v1/contracts/'
-        contractsResponse = session.get(contractsUrl)
-        return contractsResponse
+        contracts__url = 'https://' + self.access_hostname + '/papi/v1/contracts/'
+        contracts_response = session.get(contracts__url)
+        return contracts_response
 
-    def createEnrollment(self, session, contractId, data):
+    def create_enrollment(self, session, contractId, data):
         """
         Function to Create an Enrollment
 
@@ -46,20 +46,20 @@ class cps(object):
 
         Returns
         -------
-        createEnrollmentRespose : createEnrollmentRespose
-            (createEnrollmentRespose) Object with all details
+        create_enrollmentRespose : create_enrollmentRespose
+            (create_enrollmentRespose) Object with all details
         """
         headers = {
             "Content-Type": "application/vnd.akamai.cps.enrollment.v4+json",
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
-        createEnrollmentUrl = 'https://' + self.access_hostname + \
+        create_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments?contractId=' + contractId + '&deploy-not-after=2020-01-01&deploy-not-before=2018-01-01'
-        createEnrollmentResponse = session.post(
-            createEnrollmentUrl, data=data, headers=headers)
-        return createEnrollmentResponse
+        create_enrollment_response = session.post(
+            create_enrollment_url, data=data, headers=headers)
+        return create_enrollment_response
 
-    def updateEnrollment(self, session, enrollmentId, data):
+    def update_enrollment(self, session, enrollmentId, data):
         """
         Function to Create an Enrollment
 
@@ -70,20 +70,20 @@ class cps(object):
 
         Returns
         -------
-        updateEnrollmentRespose : updateEnrollmentRespose
-            (updateEnrollmentRespose) Object with all details
+        update_enrollmentRespose : update_enrollmentRespose
+            (update_enrollmentRespose) Object with all details
         """
         headers = {
             "Content-Type": "application/vnd.akamai.cps.enrollment.v4+json",
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
-        updateEnrollmentUrl = 'https://' + self.access_hostname + \
+        update_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId) + '?allow-cancel-pending-changes=true'
-        updateEnrollmentResponse = session.put(
-            updateEnrollmentUrl, data=data, headers=headers)
-        return updateEnrollmentResponse
+        update_enrollment_response = session.put(
+            update_enrollment_url, data=data, headers=headers)
+        return update_enrollment_response
 
-    def listEnrollments(self, session, contractId):
+    def list_enrollments(self, session, contractId):
         """
         Function to List Enrollments
 
@@ -94,19 +94,19 @@ class cps(object):
 
         Returns
         -------
-        listEnrollmentsRespose : listEnrollmentsRespose
-            (listEnrollmentsRespose) Object with all details
+        list_enrollmentsRespose : list_enrollmentsRespose
+            (list_enrollmentsRespose) Object with all details
         """
         headers = {
             "Accept": "application/vnd.akamai.cps.enrollments.v4+json"
         }
-        listEnrollmentsUrl = 'https://' + self.access_hostname + \
+        list_enrollments_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments?contractId=' + contractId
-        listEnrollmentsResponse = session.get(
-            listEnrollmentsUrl, headers=headers)
-        return listEnrollmentsResponse
+        list_enrollments_response = session.get(
+            list_enrollments_url, headers=headers)
+        return list_enrollments_response
 
-    def getEnrollment(self, session, enrollmentId):
+    def get_enrollment(self, session, enrollmentId):
         """
         Function to Get an Enrollment
 
@@ -117,18 +117,18 @@ class cps(object):
 
         Returns
         -------
-        getEnrollmentRespose : getEnrollmentRespose
-            (getEnrollmentRespose) Object with all details
+        get_enrollmentRespose : get_enrollmentRespose
+            (get_enrollmentRespose) Object with all details
         """
         headers = {
             "Accept": "application/vnd.akamai.cps.enrollment.v4+json"
         }
-        getEnrollmentUrl = 'https://' + self.access_hostname + \
+        get_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId)
-        getEnrollmentResponse = session.get(getEnrollmentUrl, headers=headers)
-        return getEnrollmentResponse
+        get_enrollment_response = session.get(get_enrollment_url, headers=headers)
+        return get_enrollment_response
 
-    def getChangeStatus(self, session, enrollmentId, changeId):
+    def get_change_status(self, session, enrollmentId, changeId):
         """
         Function to Get details about changes made to an enrollment
 
@@ -139,19 +139,19 @@ class cps(object):
 
         Returns
         -------
-        getChangeStatusRespose : getChangeStatusRespose
-            (getChangeStatusRespose) Object with all details
+        get_change_statusRespose : get_change_statusRespose
+            (get_change_statusRespose) Object with all details
         """
         headers = {
             "Accept": "application/vnd.akamai.cps.change.v1+json"
         }
-        getChangeStatusUrl = 'https://' + self.access_hostname + \
+        get_change_status_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + \
             str(enrollmentId) + '/changes/' + str(changeId)
-        getChangeStatusResponse = session.get(getChangeStatusUrl, headers=headers)
-        return getChangeStatusResponse
+        get_change_status_response = session.get(get_change_status_url, headers=headers)
+        return get_change_status_response
 
-    def cancelChange(self, session, enrollmentId, changeId):
+    def cancel_change(self, session, enrollmentId, changeId):
         """
         Function to cancel a change
 
@@ -162,19 +162,19 @@ class cps(object):
 
         Returns
         -------
-        cancelChangeResponse : cancelChangeResponse
-            (cancelChangeResponse) Object with all details
+        cancel_change_response : cancel_change_response
+            (cancel_change_response) Object with all details
         """
         headers = {
             "Accept": "application/vnd.akamai.cps.change-id.v1+json"
         }
-        cancelChangeUrl = 'https://' + self.access_hostname + \
+        cancel_change_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId) + '/changes/' + str(changeId)
-        cancelChangeResponse = session.delete(
-            cancelChangeUrl, headers=headers)
-        return cancelChangeResponse
+        cancel_change_response = session.delete(
+            cancel_change_url, headers=headers)
+        return cancel_change_response
 
-    def getCertificate(self, session, enrollmentId):
+    def get_certificate(self, session, enrollmentId):
         """
         Function to Get a Certificate
 
@@ -185,20 +185,20 @@ class cps(object):
 
         Returns
         -------
-        getCertificateRespose : getCertificateRespose
-            (getCertificateRespose) Object with all details
+        get_certificate_response : get_certificate_response
+            (get_certificate_response) Object with all details
         """
         headers = {
             "Accept": "application/vnd.akamai.cps.deployment.v3+json"
         }
-        getCertificateUrl = 'https://' + self.access_hostname + \
+        get_certificate_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + \
             str(enrollmentId) + '/deployments/production'
-        getCertificateResponse = session.get(getCertificateUrl, headers=headers)
-        return getCertificateResponse
+        get_certificate_response = session.get(get_certificate_url, headers=headers)
+        return get_certificate_response
 
 
-    def getDvChangeInfo(self, session, endpoint):
+    def get_dv_change_info(self, session, endpoint):
         """
         Function to Get a Certificate
 
@@ -209,18 +209,18 @@ class cps(object):
 
         Returns
         -------
-        customCallRespose : customCallRespose
-            (customCallRespose) Object with all details
+        customCall_response : customCall_response
+            (customCall_response) Object with all details
         """
         headers = {
             "Accept": "application/vnd.akamai.cps.dv-challenges.v2+json"
         }
-        dvChangeInfoUrl = 'https://' + self.access_hostname + endpoint
-        dvChangeInfoResponse = session.get(dvChangeInfoUrl, headers=headers)
-        return dvChangeInfoResponse
+        dvChangeInfo_url = 'https://' + self.access_hostname + endpoint
+        dvChangeInfo_response = session.get(dvChangeInfo_url, headers=headers)
+        return dvChangeInfo_response
 
 
-    def customPostCall(self, session, headers, endpoint):
+    def custom_post_call(self, session, headers, endpoint):
         """
         Function to Get a Certificate
 
@@ -231,10 +231,10 @@ class cps(object):
 
         Returns
         -------
-        customCallRespose : customCallRespose
-            (customCallRespose) Object with all details
+        customCall_response : customCall_response
+            (customCall_response) Object with all details
         """
 
-        customUrl = 'https://' + self.access_hostname + endpoint
-        customResponse = session.post(customUrl, headers=headers)
-        return customResponse
+        custom_url = 'https://' + self.access_hostname + endpoint
+        custom_response = session.post(custom_url, headers=headers)
+        return custom_response
