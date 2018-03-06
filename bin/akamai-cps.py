@@ -161,12 +161,12 @@ def cli():
         [{"name": "file",
           "help": "Input filename from templates folder to read enrollment details"}])
 
-    actions["proceed"] = create_sub_command(
-        subparsers, "proceed",
-        "Proceed with the next step on the enrollment",
-        [{"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        None)
+    #actions["proceed"] = create_sub_command(
+    #    subparsers, "proceed",
+    #    "Proceed with the next step on the enrollment",
+    #    [{"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+    #     {"name": "cn", "help": "Common Name of certificate"}],
+    #    None)
 
     actions["download"] = create_sub_command(
         subparsers, "download",
@@ -177,7 +177,7 @@ def cli():
         [{"name": "format", "help": "Accepted values are json OR yaml"}])
 
     actions["cancel"] = create_sub_command(
-        subparsers, "cancel", "Cancel an enrollment",
+        subparsers, "cancel", "Cancel an existing change",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
          {"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
@@ -661,6 +661,12 @@ def status(args):
                             # have a change status object, but no allowed input data, try again later?
                             root_logger.info(
                                 'Found pending changes, but next validation steps are not ready yet. Please check back later...')
+                            if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
+                                chstatus = change_status_response_json['statusInfo']['status']
+                                chdesc =  change_status_response_json['statusInfo']['description']
+                                root_logger.info('\nChange Status Information:')
+                                root_logger.info('Status = ' + chstatus)
+                                root_logger.info('Description = ' + chdesc)                            
                             exit(0)
                     else:
                         root_logger.info(
