@@ -187,7 +187,7 @@ def cli():
         subparsers, "status", "Get any current change status for an enrollment",
         [{"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
-        None)
+        [{"name": "validation-type", "help": "Use http or dns"}])
 
     actions["list"] = create_sub_command(
         subparsers, "list", "List all enrollments",
@@ -243,7 +243,7 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            if name == 'force' or name == 'showExpiration':
+            if name == 'force' or name == 'show_expiration':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -524,9 +524,12 @@ def proceed(args):
 
 
 def status(args):
+    validation_type = args.validation_type
+    if validation_type.upper() != 'http'.upper() and validation_type.upper() != 'dns'.upper():
+        root_logger.info('Please enter valid values for validation_type. (http/dns)')
+        exit(-1)
     if not args.cn and not args.enrollment_id:
-        root_logger.info(
-            'Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
+        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -581,78 +584,69 @@ def status(args):
                                 '\nFound Change Type: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
                                 info = change_status_response_json['allowedInput'][0]['info']
-                                root_logger.info(
-                                    '\nGetting change info for: ' + info)
+                                root_logger.info('\nGetting change info for: ' + info)
                                 dvChangeInfoResponse = cps_object.get_dv_change_info(
                                     session, info)
                                 root_logger.info('\n\n\n')
-                                root_logger.info(json.dumps(
-                                    dvChangeInfoResponse.json(), indent=4))
-                                if dvChangeInfoResponse.status_code == 200:
-                                    dvChangeInfoResponseJson = dvChangeInfoResponse.json()
-                                    numDomains = len(
-                                        dvChangeInfoResponseJson['dv'])
-                                    if numDomains > 0:
-                                        root_logger.info(
-                                            '-----------------------------')
-                                        root_logger.info(
-                                            'Domain challenges received back from Let\'s Encrypt.' +
-                                            '\nYou now must prove control over the domains by completing' +
-                                             'either the HTTP VALIDATION STEPS or DNS VALIDATION STEPS:.\n')
-                                        root_logger.info(
-                                            '\nA. HTTP VALIDATION STEPS:')
-                                        root_logger.info('\nLet\'s Encrypt must validate that you control each domain listed on the certificate.' +
-                                        ' To prove you have control, you must configure your web server for each individual URL for each domain on the' +
-                                        'certificate to redirect traffic to Akamai. Once Akamai detects the redirect is in place, CPS informs ' +
-                                        'Let\'s Encrypt that it can validate the domains by answering the challenges correctly. Within a few hours of ' +
-                                        'redirecting your traffic, Let\'s Encrypt automatically validates your domains and your certificate deploys.\n')
+                                root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
+                                root_logger.info('\n\n')
+                                if validation_type.upper() == 'http'.upper():
+                                    if dvChangeInfoResponse.status_code == 200:
+                                        dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+                                        numDomains = len(
+                                            dvChangeInfoResponseJson['dv'])
+                                        if numDomains > 0:
+                                            table = PrettyTable(
+                                                ['Domain', 'Status', 'Token'])
+                                            table.align = "l"
+                                            for everyDv in dvChangeInfoResponseJson['dv']:
+                                                #root_logger.info(json.dumps(everyDv, indent =4))
+                                                rowData = []
+                                                for everyChallenge in everyDv['challenges']:
+                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
+                                                        rowData.append(everyDv['domain'])
+                                                        rowData.append(everyDv['status'])
+                                                        rowData.append(everyChallenge['token'])
+                                                        table.add_row(rowData)
+                                            root_logger.info(table)
 
-                                        table = PrettyTable(
-                                            ['Domain', 'Status', 'Redirect From', 'Redirect To'])
-                                        table.align = "l"
-                                        for everyDv in dvChangeInfoResponseJson['dv']:
-                                            #root_logger.info(json.dumps(everyDv, indent =4))
-                                            rowData = []
-                                            for everyChallenge in everyDv['challenges']:
+                                            domainCount = 1
+                                            root_logger.info('-----------------------------')
+                                            root_logger.info('\nA. HTTP VALIDATION STEPS:')
+                                            root_logger.info('-----------------------------')
+                                            for everyDv in dvChangeInfoResponseJson['dv']:
                                                 if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
-                                                    rowData.append(
-                                                        everyDv['domain'])
-                                                    rowData.append(
-                                                        everyDv['status'])
-                                                    rowData.append(
-                                                        everyChallenge['fullPath'])
-                                                    rowData.append(
-                                                        everyChallenge['redirectFullPath'])
-                                                    table.add_row(rowData)
-                                        root_logger.info(table)
+                                                    root_logger.info(str(domainCount) + '. Configure a redirect' +
+                                                    ' from http://' + everyDv['domain'] + '/.well-known/acme-challenge/' + everyChallenge['token'] +
+                                                    ' to http://dcv.akamai.com/.well-known/acme-challenge/' + everyChallenge['token'] + '\n')
+                                                    domainCount += 1
+                                elif validation_type.upper() == 'dns'.upper():
+                                    if dvChangeInfoResponse.status_code == 200:
+                                        dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+                                        numDomains = len(dvChangeInfoResponseJson['dv'])
+                                        if numDomains > 0:
+                                            table = PrettyTable(['Domain', 'Status', 'Token'])
+                                            table.align = "l"
+                                            for everyDv in dvChangeInfoResponseJson['dv']:
+                                                rowData = []
+                                                for everyChallenge in everyDv['challenges']:
+                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
+                                                        rowData.append(everyDv['domain'])
+                                                        rowData.append(everyDv['status'])
+                                                        rowData.append(everyChallenge['token'])
+                                                        table.add_row(rowData)
+                                            root_logger.info(table)
 
-                                        root_logger.info(
-                                            '\nB. DNS VALIDATION STEPS:')
-                                        root_logger.info(
-                                            '\nPlease deploy a DNS TXT record using the following domains and expected values below.' +
-                                            ' After the DNS records below resolve, Let\'s Encrypt automatically validates your domain and ' +
-                                            'your certificate deploys\n ')
-                                        #root_logger.info('\nThe end result is: DIG TXT {fullPath} \n')
-                                        #root_logger.info('\nReturn: {fullPath} 7200 IN TXT {responseBody} \n')
+                                            root_logger.info('-----------------------------')
+                                            root_logger.info('\nDNS VALIDATION STEPS:')
+                                            root_logger.info('-----------------------------')
+                                            for everyDv in dvChangeInfoResponseJson['dv']:
+                                                for everyChallenge in everyDv['challenges']:
+                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
+                                                        root_logger.info('DNS query: DIG TXT _acme_challenge.' + everyDv['domain'])
+                                                        root_logger.info('Expected Result: _acme_challenge.' + everyDv['domain'] +
+                                                        ' 7200 IN TXT ' + everyChallenge['token'] + '\n')
 
-                                        table = PrettyTable(
-                                            ['Domain', 'Status', 'DNS Query', 'Expected Result'])
-                                        table.align = "l"
-                                        for everyDv in dvChangeInfoResponseJson['dv']:
-                                            rowData = []
-                                            rowData = []
-                                            for everyChallenge in everyDv['challenges']:
-                                                if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
-                                                    rowData.append(
-                                                        everyDv['domain'])
-                                                    rowData.append(
-                                                        everyDv['status'])
-                                                    rowData.append(
-                                                        'DIG TXT ' + everyChallenge['fullPath'])
-                                                    rowData.append(
-                                                        everyChallenge['fullPath'] + '7200 IN TXT ' + everyChallenge['responseBody'])
-                                                    table.add_row(rowData)
-                                        root_logger.info(table)
                             else:
                                 root_logger.info(
                                     'Unsupported Change Type at this time: ' + changeType)
@@ -666,7 +660,7 @@ def status(args):
                                 chdesc =  change_status_response_json['statusInfo']['description']
                                 root_logger.info('\nChange Status Information:')
                                 root_logger.info('Status = ' + chstatus)
-                                root_logger.info('Description = ' + chdesc)                            
+                                root_logger.info('Description = ' + chdesc)
                             exit(0)
                     else:
                         root_logger.info(
