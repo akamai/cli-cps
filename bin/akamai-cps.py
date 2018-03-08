@@ -347,25 +347,23 @@ def setup(args, invoker='default'):
         enrollments_response = cps_object.list_enrollments(
             session, contractId)
         if enrollments_response.status_code == 200:
-            with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
-                enrollments_json = enrollments_response.json()
-                # Find number of groups using len function
-                totalEnrollments = len(enrollments_json['enrollments'])
-                if invoker == 'default':
-                    root_logger.info(str(totalEnrollments) +
-                                     ' total enrollments found.')
-                if (totalEnrollments > 0):
-                    for every_enrollment in enrollments_json['enrollments']:
-                        enrollmentInfo = {}
-                        if 'csr' in every_enrollment:
-                            #print(json.dumps(every_enrollment, indent = 4))
-                            enrollmentInfo['cn'] = every_enrollment['csr']['cn']
-                            enrollmentInfo['contractId'] = contractId
-                            enrollmentInfo['enrollmentId'] = int(
-                                every_enrollment['location'].split('/')[-1])
-                            enrollmentOutput.append(enrollmentInfo)
-                    enrollmentsFile.write(
-                        json.dumps(enrollmentOutput, indent=4))
+            enrollments_json = enrollments_response.json()
+            # Find number of groups using len function
+            totalEnrollments = len(enrollments_json['enrollments'])
+            if invoker == 'default':
+                root_logger.info(str(totalEnrollments) +
+                                 ' total enrollments found.')
+            if (totalEnrollments > 0):
+                for every_enrollment in enrollments_json['enrollments']:
+                    enrollmentInfo = {}
+                    if 'csr' in every_enrollment:
+                        #print(json.dumps(every_enrollment, indent = 4))
+                        enrollmentInfo['cn'] = every_enrollment['csr']['cn']
+                        enrollmentInfo['contractId'] = contractId
+                        enrollmentInfo['enrollmentId'] = int(
+                            every_enrollment['location'].split('/')[-1])
+                        enrollmentOutput.append(enrollmentInfo)
+
         else:
             root_logger.info(
                 'Unable to list Enrollments under contract: ' + contractId)
@@ -374,6 +372,10 @@ def setup(args, invoker='default'):
             # Cannot exit here as there might be other contracts which might
             # have enrollments
             # exit(-1)
+    with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
+        enrollmentsFile.write(
+            json.dumps(enrollmentOutput, indent=4))
+
     if invoker == 'default':
         root_logger.info('\nEnrollments details are stored in ' + '"' +
                          os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
@@ -684,6 +686,7 @@ def status(args):
 def list(args):
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
+    contract_id_set = set()
     try:
         # Fetch the contractId from setup/enrollments.json file
         enrollmentsPath = os.path.join('setup')
@@ -696,81 +699,85 @@ def list(args):
                 enrollments_json_content = json.loads(enrollments_string_content)
                 for every_enrollment_info in enrollments_json_content:
                     contractId = every_enrollment_info['contractId']
-                    break
+                    contract_id_set.add(contractId)
 
-        enrollments_response = cps_object.list_enrollments(session, contractId)
-        if enrollments_response.status_code == 200:
-            enrollments_json = enrollments_response.json()
-            # Find number of groups using len function
-            totalEnrollments = len(enrollments_json['enrollments'])
-            root_logger.info(str(totalEnrollments) +
-                             ' total enrollments found.')
-            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
-                                 'Certificate Type', '*In-Progress*', 'Test on Staging First', ])
-            if args.show_expiration:
+        #Iterate all contracts
+        for contractId in contract_id_set:
+            enrollments_response = cps_object.list_enrollments(session, contractId)
+            if enrollments_response.status_code == 200:
+                #Initialize the table
                 table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
-                                     'Certificate Type', '*In-Progress*', 'Test on Staging First', 'Expiration'])
-                root_logger.info(
-                    '\nFetching list with production expiration dates. Please wait... \n')
-            table.align = "l"
-            count = 0
-            for every_enrollment in enrollments_json['enrollments']:
-                if 'csr' in every_enrollment:
-                    count = count + 1
-                    rowData = []
-                    #print(json.dumps(every_enrollment, indent = 4))
-                    cn = every_enrollment['csr']['cn']
-                    if args.show_expiration:
-                        root_logger.info('Processing ' + str(count) + ' of ' + str(
-                            totalEnrollments) + ': Common Name (CN): ' + cn)
-                    if 'sans' in every_enrollment['csr'] and every_enrollment['csr']['sans'] is not None:
-                        if (len(every_enrollment['csr']['sans']) > 1):
-                            cn = cn + \
-                                ' (' + \
-                                str(len(every_enrollment['csr']['sans'])) + ')'
-                    else:
-                        pass
-                    enrollmentId = every_enrollment['location'].split('/')[-1]
-                    # Checking pending changes to add star mark
-                    if 'pendingChanges' in every_enrollment:
-                        if len(every_enrollment['pendingChanges']) > 0:
-                            rowData.append('*' + str(enrollmentId) + '*')
-                        else:
-                            rowData.append(enrollmentId)
-                    # rowData.append(enrollmentId
-                    rowData.append(cn)
-                    certificateType = every_enrollment['validationType']
-                    if certificateType != 'third-party':
-                        certificateType = every_enrollment['validationType'] + \
-                            ' ' + every_enrollment['certificateType']
-                    rowData.append(certificateType)
-                    # rowData.append(every_enrollment['certificateType'])
-                    if 'pendingChanges' in every_enrollment:
-                        if len(every_enrollment['pendingChanges']) > 0:
-                            rowData.append('*Yes*')
-                        else:
-                            rowData.append('No')
-                    if 'changeManagement' in every_enrollment:
-                        if every_enrollment['changeManagement'] is True:
-                            rowData.append('Yes')
-                        else:
-                            rowData.append('No')
-
+                                     'Certificate Type', '*In-Progress*', 'Test on Staging First', ])
                 if args.show_expiration:
-                    #enrollment_details_json = enrollment_details.json()
-                    # print(json.dumps(enrollment_details.json(),indent=4))
-                    certResponse = cps_object.get_certificate(
-                        session, enrollmentId)
-                    expiration = ''
-                    if certResponse.status_code == 200:
-                        cert = x509.load_pem_x509_certificate(
-                            certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date())
-                    else:
-                        root_logger.debug(
-                            'Reason: ' + json.dumps(certResponse.json(), indent=4))
-                    rowData.append(expiration)
-                table.add_row(rowData)
+                    table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
+                                         'Certificate Type', '*In-Progress*', 'Test on Staging First', 'Expiration'])
+                    root_logger.info(
+                        '\nFetching list with production expiration dates. Please wait... \n')
+                table.align = "l"
+
+                enrollments_json = enrollments_response.json()
+                # Find number of groups using len function
+                totalEnrollments = len(enrollments_json['enrollments'])
+                root_logger.info('\n' + str(totalEnrollments) +
+                                 ' total enrollments found in Contract: ' + contractId)
+                count = 0
+                for every_enrollment in enrollments_json['enrollments']:
+                    if 'csr' in every_enrollment:
+                        count = count + 1
+                        rowData = []
+                        #print(json.dumps(every_enrollment, indent = 4))
+                        cn = every_enrollment['csr']['cn']
+                        if args.show_expiration:
+                            root_logger.info('Processing ' + str(count) + ' of ' + str(
+                                totalEnrollments) + ': Common Name (CN): ' + cn)
+                        if 'sans' in every_enrollment['csr'] and every_enrollment['csr']['sans'] is not None:
+                            if (len(every_enrollment['csr']['sans']) > 1):
+                                cn = cn + \
+                                    ' (' + \
+                                    str(len(every_enrollment['csr']['sans'])) + ')'
+                        else:
+                            pass
+                        enrollmentId = every_enrollment['location'].split('/')[-1]
+                        # Checking pending changes to add star mark
+                        if 'pendingChanges' in every_enrollment:
+                            if len(every_enrollment['pendingChanges']) > 0:
+                                rowData.append('*' + str(enrollmentId) + '*')
+                            else:
+                                rowData.append(enrollmentId)
+                        # rowData.append(enrollmentId
+                        rowData.append(cn)
+                        certificateType = every_enrollment['validationType']
+                        if certificateType != 'third-party':
+                            certificateType = every_enrollment['validationType'] + \
+                                ' ' + every_enrollment['certificateType']
+                        rowData.append(certificateType)
+                        # rowData.append(every_enrollment['certificateType'])
+                        if 'pendingChanges' in every_enrollment:
+                            if len(every_enrollment['pendingChanges']) > 0:
+                                rowData.append('*Yes*')
+                            else:
+                                rowData.append('No')
+                        if 'changeManagement' in every_enrollment:
+                            if every_enrollment['changeManagement'] is True:
+                                rowData.append('Yes')
+                            else:
+                                rowData.append('No')
+
+                    if args.show_expiration:
+                        #enrollment_details_json = enrollment_details.json()
+                        # print(json.dumps(enrollment_details.json(),indent=4))
+                        certResponse = cps_object.get_certificate(
+                            session, enrollmentId)
+                        expiration = ''
+                        if certResponse.status_code == 200:
+                            cert = x509.load_pem_x509_certificate(
+                                certResponse.json()['certificate'].encode(), default_backend())
+                            expiration = str(cert.not_valid_after.date())
+                        else:
+                            root_logger.debug(
+                                'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                        rowData.append(expiration)
+                    table.add_row(rowData)
             root_logger.info(table)
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName +
@@ -793,7 +800,7 @@ def audit(args):
 
     with open(outputFile, 'w') as fileHandler:
         fileHandler.write(
-            'Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
+            'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
             Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
             Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
             SNI, Country, State, Organization, Organization Unit \n')
@@ -810,6 +817,7 @@ def audit(args):
             count = 0
             for every_enrollment_info in enrollments_json_content:
                 count = count + 1
+                contract_id = every_enrollment_info['contractId']
                 enrollmentId = every_enrollment_info['enrollmentId']
                 commonName = every_enrollment_info['cn']
                 root_logger.info('Processing ' + str(count) + ' of ' +
@@ -863,7 +871,7 @@ def audit(args):
                         sniInfo = ''
 
                     with open(outputFile, 'a') as fileHandler:
-                        fileHandler.write(str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
+                        fileHandler.write(contract_id + ',' + str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
                                           + expiration + ', ' +
                                           enrollment_details_json['validationType'] + ', ' +
                                           enrollment_details_json['certificateType'] + ', '
