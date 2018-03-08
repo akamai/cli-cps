@@ -764,12 +764,15 @@ def list(args):
                                 'Reason: ' + json.dumps(certResponse.json(), indent=4))
                         rowData.append(expiration)
                     table.add_row(rowData)
-            root_logger.info(table)
+                root_logger.info(table)
+                root_logger.info('\n** means enrollment has existing pending changes\n')
+            else:
+                root_logger.info('Could not list enrollments. Please ensure you have run setup to populate the local enrollments.json file')
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName +
                          ' is not found in templates folder. Exiting.\n')
         exit(1)
-    root_logger.info('\n** means enrollment has existing pending changes\n')
+
 
 
 def audit(args):
