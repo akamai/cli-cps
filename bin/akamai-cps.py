@@ -343,7 +343,7 @@ def setup(args, invoker='default'):
         contractId = everyContract['contractId'].split('_')[1]
         if invoker == 'default':
             root_logger.info(
-                '\nProcessing Enrollments under contract: ' + contractId)
+                '\nProcessing Enrollments for contract: ' + contractId)
         enrollments_response = cps_object.list_enrollments(
             session, contractId)
         if enrollments_response.status_code == 200:
@@ -366,7 +366,7 @@ def setup(args, invoker='default'):
 
         else:
             root_logger.info(
-                'Unable to list Enrollments under contract: ' + contractId)
+                'Unable to find enrollments for contract: ' + contractId)
             root_logger.debug(json.dumps(
                 enrollments_response.json(), indent=4))
             # Cannot exit here as there might be other contracts which might
@@ -583,15 +583,14 @@ def status(args):
                             changeType = change_status_response_json['allowedInput'][0]['type']
                             # root_logger.info('-----------------------------')
                             root_logger.info(
-                                '\nFound Change Type: ' + changeType)
+                                'Change Type Found: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
                                 info = change_status_response_json['allowedInput'][0]['info']
-                                root_logger.info('\nGetting change info for: ' + info)
+                                root_logger.info('\nGetting change info for: ' + info + '\n')
                                 dvChangeInfoResponse = cps_object.get_dv_change_info(
                                     session, info)
-                                root_logger.info('\n\n\n')
-                                root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
-                                root_logger.info('\n\n')
+                                #debug print out change info response
+                                #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
                                 if validation_type.upper() == 'http'.upper():
                                     if dvChangeInfoResponse.status_code == 200:
                                         dvChangeInfoResponseJson = dvChangeInfoResponse.json()
@@ -612,16 +611,9 @@ def status(args):
                                                         table.add_row(rowData)
                                             root_logger.info(table)
 
-                                            domainCount = 1
-                                            root_logger.info('-----------------------------')
-                                            root_logger.info('\nA. HTTP VALIDATION STEPS:')
-                                            root_logger.info('-----------------------------')
-                                            for everyDv in dvChangeInfoResponseJson['dv']:
-                                                if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
-                                                    root_logger.info(str(domainCount) + '. Configure a redirect' +
-                                                    ' from http://' + everyDv['domain'] + '/.well-known/acme-challenge/' + everyChallenge['token'] +
-                                                    ' to http://dcv.akamai.com/.well-known/acme-challenge/' + everyChallenge['token'] + '\n')
-                                                    domainCount += 1
+                                            root_logger.info('\nHTTP VALIDATION INFO:')
+                                            root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
+                                            root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')                    
                                 elif validation_type.upper() == 'dns'.upper():
                                     if dvChangeInfoResponse.status_code == 200:
                                         dvChangeInfoResponseJson = dvChangeInfoResponse.json()
@@ -639,16 +631,10 @@ def status(args):
                                                         table.add_row(rowData)
                                             root_logger.info(table)
 
-                                            root_logger.info('-----------------------------')
-                                            root_logger.info('\nDNS VALIDATION STEPS:')
-                                            root_logger.info('-----------------------------')
-                                            for everyDv in dvChangeInfoResponseJson['dv']:
-                                                for everyChallenge in everyDv['challenges']:
-                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
-                                                        root_logger.info('DNS query: DIG TXT _acme_challenge.' + everyDv['domain'])
-                                                        root_logger.info('Expected Result: _acme_challenge.' + everyDv['domain'] +
-                                                        ' 7200 IN TXT ' + everyChallenge['token'] + '\n')
-
+                                            root_logger.info('\nDNS VALIDATION INFO:')
+                                            root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS token as follows:\n')
+                                            root_logger.info('DNS Query: DIG TXT _acme_challenge.<domain>')                    
+                                            root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <token>\n')
                             else:
                                 root_logger.info(
                                     'Unsupported Change Type at this time: ' + changeType)
