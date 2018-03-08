@@ -138,7 +138,7 @@ def cli():
     actions["show"] = create_sub_command(
         subparsers, "show",
         "Display details of an enrollment",
-        [{"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
 
@@ -156,7 +156,7 @@ def cli():
         "Update an enrollment from a yaml or json input file. "
         "(Use --file to specify the filename",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
-         {"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of Certificate to update"}],
         [{"name": "file",
           "help": "Input filename from templates folder to read enrollment details"}])
@@ -164,7 +164,7 @@ def cli():
     #actions["proceed"] = create_sub_command(
     #    subparsers, "proceed",
     #    "Proceed with the next step on the enrollment",
-    #    [{"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+    #    [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
     #     {"name": "cn", "help": "Common Name of certificate"}],
     #    None)
 
@@ -172,20 +172,20 @@ def cli():
         subparsers, "download",
         "Download enrollment data to a yaml or json file",
         [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
-         {"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         [{"name": "format", "help": "Accepted values are json OR yaml"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an existing change",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
-         {"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
 
     actions["status"] = create_sub_command(
         subparsers, "status", "Get any current change status for an enrollment",
-        [{"name": "enrollment-id", "help": "enrollmentId of the enrollment"},
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         [{"name": "validation-type", "help": "Use http or dns"}])
 
@@ -384,7 +384,7 @@ def setup(args, invoker='default'):
 def show(args):
     if not args.cn and not args.enrollment_id:
         root_logger.info(
-            'Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
+            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -408,7 +408,7 @@ def show(args):
                 exit(0)
 
             root_logger.info('Showing details of ' + cn +
-                             ' with enrollmentId: ' + str(enrollmentId))
+                             ' with enrollment-id: ' + str(enrollmentId))
 
             enrollment_details = cps_object.get_enrollment(
                 session, enrollmentId)
@@ -430,7 +430,7 @@ def show(args):
 def proceed(args):
     if not args.cn and not args.enrollment_id:
         root_logger.info(
-            'Common Name (--cn) or EnrollmentId (--enrollmentId) is mandatory')
+            'common name (--cn) or enrollment-id (--enrollmentId) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -450,12 +450,12 @@ def proceed(args):
                 cn = enrollmentResult['cn']
             else:
                 root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment id.')
+                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
                 exit(0)
 
             # first you have to get the enrollment
             root_logger.info('\nProceeding with next steps for ' + cn +
-                             ' with enrollmentId: ' + str(enrollmentId))
+                             ' with enrollment-id: ' + str(enrollmentId))
 
             enrollment_details = cps_object.get_enrollment(
                 session, enrollmentId)
@@ -531,7 +531,7 @@ def status(args):
         root_logger.info('Please enter valid values for validation_type. (http/dns)')
         exit(-1)
     if not args.cn and not args.enrollment_id:
-        root_logger.info('Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
+        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -551,12 +551,12 @@ def status(args):
                 cn = enrollmentResult['cn']
             else:
                 root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment id.')
+                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
                 exit(0)
 
             # first you have to get the enrollment
             root_logger.info('\nGetting enrollment for ' + cn +
-                             ' with enrollmentId: ' + str(enrollmentId))
+                             ' with enrollment-id: ' + str(enrollmentId))
 
             enrollment_details = cps_object.get_enrollment(
                 session, enrollmentId)
@@ -880,7 +880,7 @@ def audit(args):
                                           + '\n')
                 else:
                     root_logger.debug(
-                        'Unable to fetch Enrollment/Certificate details in production for enrollmentId: ' + str(enrollmentId))
+                        'Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollment_details.json(), indent=4))
             root_logger.info('\nDone! Output file written here: ' + xlsxFile)
@@ -995,7 +995,7 @@ def update(args):
     fileName = args.file
     if not args.cn and not args.enrollment_id:
         root_logger.info(
-            'Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
+            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -1046,7 +1046,7 @@ def update(args):
                     enrollment_details_json = enrollment_details.json()
                     #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
                     if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-                        root_logger.info('\nYou are about to update enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn +
+                        root_logger.info('\nYou are about to update enrollment-id: ' + str(enrollmentId) + ' and CN: ' + cn +
                                          ' \nDo you wish to continue? (Y/N)')
                         decision = input()
                     elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
@@ -1060,7 +1060,7 @@ def update(args):
                 # compare the data
                 '''if args.cn:
                     root_logger.info('Fetching details of ' + cn +
-                                    ' with enrollmentId: ' + str(enrollmentId))
+                                    ' with enrollment-id: ' + str(enrollmentId))
                 else:
                     root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
                 enrollment_details = cps_object.get_enrollment(
@@ -1130,7 +1130,7 @@ def update(args):
 def cancel(args):
     if not args.cn and not args.enrollment_id:
         root_logger.info(
-            'Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
+            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -1164,7 +1164,7 @@ def cancel(args):
                 elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
                     if not args.force:
                         root_logger.info('You are about to cancel the pending change for CN: ' +
-                                         cn + ' with enrollmentId: ' + str(enrollmentId) + '.\n' +
+                                         cn + ' with enrollment-id: ' + str(enrollmentId) + '.\n' +
                                          'If the certificate has never been active, this will also remove the enrollment.' +
                                          ' \nDo you wish to continue? (Y/N)')
                         decision = input()
@@ -1217,7 +1217,7 @@ def download(args):
         exit(-1)
     if not args.cn and not args.enrollment_id:
         root_logger.info(
-            'Common Name (--cn) or EnrollmentId (--enrollment-id) is mandatory')
+            'common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
 
@@ -1248,7 +1248,7 @@ def download(args):
                 cn = enrollmentResult['cn']
             else:
                 root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment id.')
+                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
                 exit(0)
 
             root_logger.info('Downloading details of ' + cn +
