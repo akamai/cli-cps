@@ -54,15 +54,15 @@ Does a one time download of CPS enrollments and common names for faster local re
 List all current enrollments in Akamai CPS
 
 ```bash
-%  akamai cps list
+%  akamai-cps list
 ```
 
 ### show
 Get specific details for an enrollment and outputs the details in raw json format. Please specify either --cn or --enrollment-id
 
 ```bash
-%  akamai cps show --cn sample.customer.com
-%  akamai cps show --enrollment-id 12345
+%  akamai-cps show --cn sample.customer.com
+%  akamai-cps show --enrollment-id 12345
 ```
 
 
@@ -70,10 +70,10 @@ Get specific details for an enrollment and outputs the details in raw json forma
 Download the enrollment detail in either json or yaml format.  
 
 ```bash
-%  akamai cps download --cn demo.devops.com --format yml
-%  akamai cps download --cn demo.devops.com --format json
-%  akamai cps download --enrollment-id 12345 --format json
-%  akamai cps download --enrollment-id 12345 --format json --output-file sample.yaml
+%  akamai-cps download --cn demo.devops.com --format yml
+%  akamai-cps download --cn demo.devops.com --format json
+%  akamai-cps download --enrollment-id 12345 --format json
+%  akamai-cps download --enrollment-id 12345 --format json --output-file sample.yaml
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -90,10 +90,10 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 Get current change status for an enrollment. At this time only workflow for DV SAN is supported.
 
 ```bash
-%  akamai cps status --cn sample.customer.com
-%  akamai cps status --enrollment-id 12345
-%  akamai cps status --enrollment-id 12345 --validation-type http
-%  akamai cps status --cn sample.customer.com --validation-type dns
+%  akamai-cps status --cn sample.customer.com
+%  akamai-cps status --enrollment-id 12345
+%  akamai-cps status --enrollment-id 12345 --validation-type http
+%  akamai-cps status --cn sample.customer.com --validation-type dns
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -106,54 +106,64 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 ```
 
 ### audit
-Get specific details for a enrollment. Outputs the details in raw json format.
+Generate an audit of all enrollments to a .xlsx file
 
 ```bash
-%  akamai cps show --cn demo.devops.com
+%  akamai-cps audit
+%  akamai-cps audit --output-file sample.xlsx
+```
+
+Here are the flags of interest:
+
+```
+-output-file <value>          Filename to be saved (optional). 
 ```
 
 
 ### create
-Create a new certificate request.
+Create a new certificate enrollment.
 
 ```bash
-%  akamai cps create --file ./templates/ov_san.yml
+%  akamai-cps create --file /templates/sample.yml
+%  akamai-cps create --file /templates/sample.json --force
 ```
 
-The flags of interest for create are:
+The flags of interest are:
 
 ```
---file <value>          Absolute or relative path of input file in YAML/YML format containing certificate details.
-
+--file <value>                Input file in yaml or json format with the enrollment details.
+--force                       If specified, will not prompt for confirmation (optional)
 ```
 
 ### update
-Activate a specified version for a policy to the appropriate network (staging or production)
+Update a specified enrollment.  Depending on the type of change, this may or may not trigger a new certificate deployment.
 
 ```bash
-%  akamai cps update --cn test.edgekey.net --file ./yml/demo_devops_com.yml
-%  akamai cps update --cn test.edgekey.net --file ./yml/demo_devops_com.yml --force
+%  akamai-cps update --cn test.edgekey.net --file sample.yml
+%  akamai-cps update --cn test.edgekey.net --file sample.json --force
 ```
 
-The flags of interest for update are:
+The flags of interest are (please specify either --cn or --enrollment-id):
 
 ```
---cn <common name>  Common name to be used to update the certificate/enrollment information in CPS.
---file <value>        Absolute or relative path of input file in YAML/YML format containing updated certificate details.
---force An optional argument which forces the update without displaying the changed information.
+--cn <value>                 Common name (CN) of the enrollment
+--enrollment-id <value>      Enrollment id 
+--file <value>               Input file in yaml or json format with the enrollment details.
+--force                      If specified, will not prompt for confirmation (optional)
 ```
 
 
 ### cancel
-Cancel the latest change requested to a Certificate.
+Cancel any current pending change for an enrollment.  This will only delete the enrollment too if the certificate has never been deployed on the platform.
 
 ```bash
-%  akamai cps cancel --cn demo.devops.com
+%  akamai-cps cancel --cn sample.customer.com
+%  akamai-cps cancel --enrollment-id 12345
 ```
 
-The flags of interest for cancel are:
+The flags of interest for cancel are (please specify either --cn or --enrollment-id):
 
 ```
---cn <common name>  Common name to be used to cancel the certificate/enrollment information from CPS.
-
+--cn <value>                  Common name (CN) of the enrollment
+--enrollment-id <value>       Enrollment id 
 ```
