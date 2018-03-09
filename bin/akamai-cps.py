@@ -131,9 +131,10 @@ def cli():
         "setup",
         "Initial setup to download all necessary enrollment info ")
 
-    actions["audit"] = create_sub_command(
-        subparsers, "audit", "Generate a report in xlsx format",
-        [{"name": "outputfile", "help": "Name of the outputfile to be saved to"}])
+    actions["list"] = create_sub_command(
+        subparsers, "list", "List all enrollments",
+        [{"name": "show-expiration", "help": "shows expiration date of the enrollment"}],
+        None)
 
     actions["show"] = create_sub_command(
         subparsers, "show",
@@ -141,6 +142,24 @@ def cli():
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
+
+    actions["download"] = create_sub_command(
+        subparsers, "download",
+        "Download enrollment data to a yaml or json file",
+        [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+        [{"name": "format", "help": "Accepted values are json OR yaml"}])
+
+    actions["status"] = create_sub_command(
+        subparsers, "status", "Get any current change status for an enrollment",
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+        [{"name": "validation-type", "help": "Use http or dns"}])
+
+    actions["audit"] = create_sub_command(
+        subparsers, "audit", "Generate a report in xlsx format",
+        [{"name": "output-file", "help": "Name of the outputfile to be saved to"}])
 
     actions["create"] = create_sub_command(
         subparsers, "create",
@@ -161,21 +180,6 @@ def cli():
         [{"name": "file",
           "help": "Input filename from templates folder to read enrollment details"}])
 
-    #actions["proceed"] = create_sub_command(
-    #    subparsers, "proceed",
-    #    "Proceed with the next step on the enrollment",
-    #    [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-    #     {"name": "cn", "help": "Common Name of certificate"}],
-    #    None)
-
-    actions["download"] = create_sub_command(
-        subparsers, "download",
-        "Download enrollment data to a yaml or json file",
-        [{"name": "outputfile", "help": "Name of the outputfile to be saved to"},
-         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        [{"name": "format", "help": "Accepted values are json OR yaml"}])
-
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an existing change",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
@@ -183,16 +187,14 @@ def cli():
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
 
-    actions["status"] = create_sub_command(
-        subparsers, "status", "Get any current change status for an enrollment",
-        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        [{"name": "validation-type", "help": "Use http or dns"}])
+    #actions["proceed"] = create_sub_command(
+    #    subparsers, "proceed",
+    #    "Proceed with the next step on the enrollment",
+    #    [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+    #     {"name": "cn", "help": "Common Name of certificate"}],
+    #    None)
 
-    actions["list"] = create_sub_command(
-        subparsers, "list", "List all enrollments",
-        [{"name": "show-expiration", "help": "shows expiration date of the enrollment"}],
-        None)
+
 
     args = parser.parse_args()
 
@@ -613,7 +615,7 @@ def status(args):
 
                                             root_logger.info('\nHTTP VALIDATION INFO:')
                                             root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
-                                            root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')                    
+                                            root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')
                                 elif validation_type.upper() == 'dns'.upper():
                                     if dvChangeInfoResponse.status_code == 200:
                                         dvChangeInfoResponseJson = dvChangeInfoResponse.json()
@@ -633,7 +635,7 @@ def status(args):
 
                                             root_logger.info('\nDNS VALIDATION INFO:')
                                             root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS token as follows:\n')
-                                            root_logger.info('DNS Query: DIG TXT _acme_challenge.<domain>')                    
+                                            root_logger.info('DNS Query: DIG TXT _acme_challenge.<domain>')
                                             root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <token>\n')
                             else:
                                 root_logger.info(
@@ -776,18 +778,18 @@ def list(args):
 
 
 def audit(args):
-    if args.outputfile:
-        output_file_name = args.outputfile
+    if args.output_file:
+        output_file_name = args.output_file
     else:
         timestamp = '{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now())
         output_file_name = 'CPSAudit_' + str(timestamp) + '.csv'
     enrollmentsPath = os.path.join('setup')
     if not os.path.exists('audit'):
         os.makedirs('audit')
-    outputFile = os.path.join('audit', output_file_name)
-    xlsxFile = outputFile.replace('.csv', '') + '.xlsx'
+    output_file = os.path.join('audit', output_file_name)
+    xlsxFile = output_file.replace('.csv', '') + '.xlsx'
 
-    with open(outputFile, 'w') as fileHandler:
+    with open(output_file, 'w') as fileHandler:
         fileHandler.write(
             'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
             Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
@@ -859,7 +861,7 @@ def audit(args):
                     else:
                         sniInfo = ''
 
-                    with open(outputFile, 'a') as fileHandler:
+                    with open(output_file, 'a') as fileHandler:
                         fileHandler.write(contract_id + ',' + str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
                                           + expiration + ', ' +
                                           enrollment_details_json['validationType'] + ', ' +
@@ -888,14 +890,14 @@ def audit(args):
             # Merge CSV files into XLSX
             workbook = Workbook(os.path.join(xlsxFile))
             worksheet = workbook.add_worksheet('Certificate')
-            with open(os.path.join(outputFile), 'rt', encoding='utf8') as f:
+            with open(os.path.join(output_file), 'rt', encoding='utf8') as f:
                 reader = csv.reader(f)
                 for r, row in enumerate(reader):
                     for c, col in enumerate(row):
                         worksheet.write(r, c, col)
             workbook.close()
             # Delete the csv file at the end
-            os.remove(outputFile)
+            os.remove(output_file)
 
 
 def validate(jsonContent, certType):
@@ -1222,13 +1224,13 @@ def download(args):
     cn = args.cn
 
     outputFolder = format
-    if args.outputfile:
-        outputfile = args.outputfile
+    if args.output_file:
+        output_file = args.output_file
     elif args.cn:
-        outputfile = cn.replace('.', '_') + '.' + str(format)
+        output_file = cn.replace('.', '_') + '.' + str(format)
     else:
         enrollmentId = args.enrollment_id
-        outputfile = enrollmentId.replace('.', '_') + '.' + str(format)
+        output_file = enrollmentId.replace('.', '_') + '.' + str(format)
 
     if not os.path.exists(outputFolder):
         os.makedirs(outputFolder)
@@ -1264,10 +1266,10 @@ def download(args):
                 else:
                     Data = json.dumps(enrollment_details.json(), indent=4)
 
-                with open(os.path.join(outputFolder, outputfile), 'w') as outputfile_handler:
+                with open(os.path.join(outputFolder, output_file), 'w') as outputfile_handler:
                     outputfile_handler.write(Data)
                 root_logger.info('\nOutput saved in ' +
-                                 os.path.join(outputFolder, outputfile) + '.\n')
+                                 os.path.join(outputFolder, output_file) + '.\n')
             else:
                 root_logger.info(
                     'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
