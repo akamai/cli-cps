@@ -600,7 +600,7 @@ def status(args):
                                             dvChangeInfoResponseJson['dv'])
                                         if numDomains > 0:
                                             table = PrettyTable(
-                                                ['Domain', 'Status', 'Token'])
+                                                ['Domain', 'Status', 'Token','Expiration'])
                                             table.align = "l"
                                             for everyDv in dvChangeInfoResponseJson['dv']:
                                                 #root_logger.info(json.dumps(everyDv, indent =4))
@@ -610,6 +610,7 @@ def status(args):
                                                         rowData.append(everyDv['domain'])
                                                         rowData.append(everyDv['status'])
                                                         rowData.append(everyChallenge['token'])
+                                                        rowData.append(everyDv['expires'])
                                                         table.add_row(rowData)
                                             root_logger.info(table)
 
@@ -621,7 +622,7 @@ def status(args):
                                         dvChangeInfoResponseJson = dvChangeInfoResponse.json()
                                         numDomains = len(dvChangeInfoResponseJson['dv'])
                                         if numDomains > 0:
-                                            table = PrettyTable(['Domain', 'Status', 'Token'])
+                                            table = PrettyTable(['Domain', 'Status', 'Token', 'Expiration'])
                                             table.align = "l"
                                             for everyDv in dvChangeInfoResponseJson['dv']:
                                                 rowData = []
@@ -630,6 +631,7 @@ def status(args):
                                                         rowData.append(everyDv['domain'])
                                                         rowData.append(everyDv['status'])
                                                         rowData.append(everyChallenge['token'])
+                                                        rowData.append(everyDv['expires'])
                                                         table.add_row(rowData)
                                             root_logger.info(table)
 
