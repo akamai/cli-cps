@@ -323,26 +323,62 @@ def setup(args, invoker='default'):
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
     enrollmentOutput = []
-
-    # Fetch the available contracts
-    contractIds = cps_object.get_contracts(session)
-    if contractIds.status_code == 200:
-        #root_logger.info(json.dumps(contractIds.json(), indent=4))
-        pass
-    else:
-        root_logger.info('Unable to fetch contracts')
-        root_logger.info(json.dumps(contractIds.json(), indent=4))
-        exit(-1)
+    contracts_path = os.path.join('setup')
+    contracts_file_present = False
 
     enrollmentsPath = os.path.join('setup')
     # Delete the groups folder before we start
-    if os.path.exists(enrollmentsPath):
-        shutil.rmtree(enrollmentsPath)
+    if os.path.exists(os.path.join(enrollmentsPath,'enrollments.json')):
+        os.remove(os.path.join(enrollmentsPath,'enrollments.json'))
     if not os.path.exists(enrollmentsPath):
         os.makedirs(enrollmentsPath)
 
-    for everyContract in contractIds.json()['contracts']['items']:
-        contractId = everyContract['contractId'].split('_')[1]
+    #check for presence of contracts_override.json file
+    for root, dirs, files in os.walk(enrollmentsPath):
+        local_contracts_file = 'contracts_override.json'
+        if local_contracts_file in files:
+            with open(os.path.join(enrollmentsPath, local_contracts_file), mode='r') as contractsFileHandler:
+                contracts_string_content = contractsFileHandler.read()
+                contracts_file_present = True
+                if invoker == 'default':
+                    root_logger.info('Found contracts_override.json, so ignoring [cps] credentials')
+            try:
+                contracts = json.loads(contracts_string_content)['contracts']
+                contracts_json_content = []
+                for everyContractInfo in contracts:
+                    contractId = everyContractInfo['contractId']
+                    if contractId.startswith('ctr_'):
+                        contractId = contractId.split('_')[1]
+                    contracts_json_content.append(contractId)
+            except ValueError:
+                root_logger.info('Unable to read contracts from contracts_override.json. Check the format')
+                root_logger.info('Example Format:\n')
+                root_logger.info('{"contracts": [{"contractId": "<contract_id>"}]}\n')
+                exit(-1)
+
+    # Fetch the available contracts
+    if not contracts_file_present:
+        if invoker == 'default':
+            root_logger.info('contracts_override.json is not found in setup, Finding contract details' +
+                        ' using [cps] section of ~/.edgerc file')
+        contractIds = cps_object.get_contracts(session)
+        if contractIds.status_code == 200:
+            #root_logger.info(json.dumps(contractIds.json(), indent=4))
+            contracts_json_content = []
+            contracts = contractIds.json()['contracts']['items']
+            for everyContractInfo in contracts:
+                contractId = everyContractInfo['contractId']
+                if contractId.startswith('ctr_'):
+                    contractId = contractId.split('_')[1]
+                contracts_json_content.append(contractId)
+
+        else:
+            root_logger.info('Unable to fetch contracts')
+            root_logger.info(json.dumps(contractIds.json(), indent=4))
+            exit(-1)
+
+    for contractId in contracts_json_content:
+        #contractId = everyContract['contractId'].split('_')[1]
         if invoker == 'default':
             root_logger.info(
                 '\nProcessing Enrollments for contract: ' + contractId)
