@@ -245,7 +245,7 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            if name == 'force' or name == 'show_expiration':
+            if name == 'force' or name == 'show-expiration':
                 optional.add_argument(
                     "--" + name,
                     required=False,
