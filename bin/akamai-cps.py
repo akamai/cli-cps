@@ -76,7 +76,7 @@ def init_config(edgerc_file, section):
 
     if not section:
         if not os.getenv("AKAMAI_EDGERC_SECTION"):
-            section = "cps"
+            section = "papi"
         else:
             section = os.getenv("AKAMAI_EDGERC_SECTION")
 
@@ -267,7 +267,7 @@ def create_sub_command(
     optional.add_argument(
         "--section",
         help="Section of the credentials file [$AKAMAI_EDGERC_SECTION]",
-        default="cps")
+        default="papi")
 
     optional.add_argument(
         "--debug",
@@ -325,7 +325,7 @@ def setup(args, invoker='default'):
     enrollmentOutput = []
     contracts_path = os.path.join('setup')
     contracts_file_present = False
-
+    contracts_json_content = []
     enrollmentsPath = os.path.join('setup')
     # Delete the groups folder before we start
     if os.path.exists(os.path.join(enrollmentsPath,'enrollments.json')):
@@ -341,30 +341,30 @@ def setup(args, invoker='default'):
                 contracts_string_content = contractsFileHandler.read()
                 contracts_file_present = True
                 if invoker == 'default':
-                    root_logger.info('Found contracts_override.json, so ignoring [cps] credentials')
+                    root_logger.info('Found contracts_override.json, so ignoring [papi] credentials')
             try:
                 contracts = json.loads(contracts_string_content)['contracts']
-                contracts_json_content = []
-                for everyContractInfo in contracts:
-                    contractId = everyContractInfo['contractId']
+                contracts = set(contracts)
+                for contractId in contracts:
                     if contractId.startswith('ctr_'):
                         contractId = contractId.split('_')[1]
-                    contracts_json_content.append(contractId)
+                    if len(contractId) != 0:
+                        contracts_json_content.append(contractId)
             except ValueError:
                 root_logger.info('Unable to read contracts from contracts_override.json. Check the format')
                 root_logger.info('Example Format:\n')
-                root_logger.info('{"contracts": [{"contractId": "<contract_id>"}]}\n')
+                root_logger.info('{"contracts": ["<contract_id1>","<contract_id2>"]}\n')
                 exit(-1)
 
-    # Fetch the available contracts
-    if not contracts_file_present:
+    #Fetch the available contracts
+    #note contracts_json_content is populated only if contracts_override.json has valid entries
+    if not contracts_json_content:
         if invoker == 'default':
             root_logger.info('No contract ids found in contracts_override.json file. Trying to get contract details' +
                         ' from [papi] section of ~/.edgerc file')
         contractIds = cps_object.get_contracts(session)
         if contractIds.status_code == 200:
             #root_logger.info(json.dumps(contractIds.json(), indent=4))
-            contracts_json_content = []
             contracts = contractIds.json()['contracts']['items']
             for everyContractInfo in contracts:
                 contractId = everyContractInfo['contractId']
