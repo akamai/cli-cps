@@ -359,8 +359,8 @@ def setup(args, invoker='default'):
     # Fetch the available contracts
     if not contracts_file_present:
         if invoker == 'default':
-            root_logger.info('contracts_override.json is not found in setup, Finding contract details' +
-                        ' using [cps] section of ~/.edgerc file')
+            root_logger.info('No contract ids found in contracts_override.json file. Trying to get contract details' +
+                        ' from [papi] section of ~/.edgerc file')
         contractIds = cps_object.get_contracts(session)
         if contractIds.status_code == 200:
             #root_logger.info(json.dumps(contractIds.json(), indent=4))
