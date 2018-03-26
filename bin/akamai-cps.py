@@ -167,8 +167,8 @@ def cli():
         "(Use --file to specify the filename)",
         [{"name": "force",
           "help": "No value"}],
-        [{"name": "file",
-          "help": "Input filename from templates folder to read enrollment details"}])
+        [{"name": "file", "help": "Input filename from templates folder to read enrollment details"},
+         {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}])
 
     actions["update"] = create_sub_command(
         subparsers, "update",
@@ -957,9 +957,14 @@ def create(args):
     force = args.force
     fileName = args.file
     filePath = os.path.join(fileName)
+    contract_id = args.contract_id
     try:
+        if contractId.startswith('ctr_'):
+            contractId = contractId.split('_')[1]
+
         # Fetch the contractId from setup/enrollments.json file
-        enrollmentsPath = os.path.join('setup')
+        #Commenting out till papi access is resolved
+        '''enrollmentsPath = os.path.join('setup')
         for root, dirs, files in os.walk(enrollmentsPath):
             local_enrollments_file = 'enrollments.json'
             if local_enrollments_file in files:
@@ -969,7 +974,7 @@ def create(args):
                 enrollments_json_content = json.loads(enrollments_string_content)
                 for every_enrollment_info in enrollments_json_content:
                     contractId = every_enrollment_info['contractId']
-                    break
+                    break'''
 
         try:
             with open(filePath, mode='r') as inputFileHandler:
