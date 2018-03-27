@@ -54,7 +54,7 @@ class cps(object):
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
         create_enrollment_url = 'https://' + self.access_hostname + \
-            '/cps/v2/enrollments?contractId=' + contractId + '&deploy-not-after=2020-01-01&deploy-not-before=2018-01-01'
+            '/cps/v2/enrollments?contractId=' + contractId
         create_enrollment_response = session.post(
             create_enrollment_url, data=data, headers=headers)
         return create_enrollment_response
@@ -220,7 +220,28 @@ class cps(object):
         return dvChangeInfo_response
 
 
-    def custom_post_call(self, session, headers, endpoint):
+    def get_tp_change_info(self, session, endpoint):
+        """
+        Function to get third party change details
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        tpChangeInfo_response : tpChangeInfo_response
+            (tpChangeInfo_response) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.csr.v1+json"
+        }
+        tpChangeInfo_url = 'https://' + self.access_hostname + endpoint
+        tpChangeInfo_response = session.get(tpChangeInfo_url, headers=headers)
+        return tpChangeInfo_response
+
+    def custom_post_call(self, session, headers, endpoint, data='optional'):
         """
         Function to Get a Certificate
 
@@ -236,5 +257,8 @@ class cps(object):
         """
 
         custom_url = 'https://' + self.access_hostname + endpoint
-        custom_response = session.post(custom_url, headers=headers)
+        if data == 'optional':
+            custom_response = session.post(custom_url, headers=headers)
+        else:
+            custom_response = session.post(custom_url, data=data, headers=headers)
         return custom_response

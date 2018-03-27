@@ -154,8 +154,17 @@ def cli():
     actions["status"] = create_sub_command(
         subparsers, "status", "Get any current change status for an enrollment",
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        [{"name": "validation-type", "help": "Use http or dns"}])
+         {"name": "cn", "help": "Common Name of certificate"},
+         {"name": "file", "help": "File name to store the CSR of third-party cert"},
+         {"name": "validation-type", "help": "Use http or dns"}],
+        None)
+
+    actions["third_party_upload"] = create_sub_command(
+        subparsers, "third_party_upload", "Upload a signed third party certificate",
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"},
+         {"name": "file", "help": "File name to store the CSR of third-party cert"}],
+        None)
 
     actions["audit"] = create_sub_command(
         subparsers, "audit", "Generate a report in xlsx format",
@@ -566,12 +575,81 @@ def proceed(args):
                 'Unable to find enrollments.json file. Try to run \'setup\'')
             exit(-1)
 
-
-def status(args):
+def lets_encrypt_challenges(args,cps_object, session, change_status_response_json):
+    info = change_status_response_json['allowedInput'][0]['info']
+    root_logger.info('\nGetting change info for: ' + info + '\n')
+    dvChangeInfoResponse = cps_object.get_dv_change_info(
+        session, info)
+    #debug print out change info response
+    #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
     validation_type = args.validation_type
     if validation_type.upper() != 'http'.upper() and validation_type.upper() != 'dns'.upper():
         root_logger.info('Please enter valid values for validation_type. (http/dns)')
         exit(-1)
+
+    if validation_type.upper() == 'http'.upper():
+        if dvChangeInfoResponse.status_code == 200:
+            dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+            numDomains = len(
+                dvChangeInfoResponseJson['dv'])
+            if numDomains > 0:
+                table = PrettyTable(
+                    ['Domain', 'Status', 'Token','Expiration'])
+                table.align = "l"
+                for everyDv in dvChangeInfoResponseJson['dv']:
+                    #root_logger.info(json.dumps(everyDv, indent =4))
+                    rowData = []
+                    for everyChallenge in everyDv['challenges']:
+                        if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
+                            rowData.append(everyDv['domain'])
+                            rowData.append(everyDv['status'])
+                            rowData.append(everyChallenge['token'])
+                            rowData.append(everyDv['expires'])
+                            table.add_row(rowData)
+                root_logger.info(table)
+
+                root_logger.info('\nHTTP VALIDATION INFO:')
+                root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
+                root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')
+    elif validation_type.upper() == 'dns'.upper():
+        if dvChangeInfoResponse.status_code == 200:
+            dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+            numDomains = len(dvChangeInfoResponseJson['dv'])
+            if numDomains > 0:
+                table = PrettyTable(['Domain', 'Status', 'Token', 'Expiration'])
+                table.align = "l"
+                for everyDv in dvChangeInfoResponseJson['dv']:
+                    rowData = []
+                    for everyChallenge in everyDv['challenges']:
+                        if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
+                            rowData.append(everyDv['domain'])
+                            rowData.append(everyDv['status'])
+                            rowData.append(everyChallenge['token'])
+                            rowData.append(everyDv['expires'])
+                            table.add_row(rowData)
+                root_logger.info(table)
+
+                root_logger.info('\nDNS VALIDATION INFO:')
+                root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS token as follows:\n')
+                root_logger.info('DNS Query: DIG TXT _acme_challenge.<domain>')
+                root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <token>\n')
+
+def third_party_challenges(args,cps_object, session, change_status_response_json):
+    info = change_status_response_json['allowedInput'][0]['info']
+    root_logger.info('\nGetting change info for: ' + info + '\n')
+    changeInfoResponse = cps_object.get_tp_change_info(
+        session, info)
+
+    if args.file:
+        #write to file
+        root_logger.info('Writing CSR to file: ' + args.file)
+        with open(args.file,'w') as csr_file_handler:
+            csr_file_handler.write(str(changeInfoResponse.json()['csr']))
+    else:
+        root_logger.info('Below is the CSR. Please get it signed by a CA\n')
+        print(str(changeInfoResponse.json()['csr']) + '\n')
+
+def status(args):
     if not args.cn and not args.enrollment_id:
         root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
@@ -624,65 +702,18 @@ def status(args):
                             # if there is something in allowedInput, there is something to do
                             changeType = change_status_response_json['allowedInput'][0]['type']
                             # root_logger.info('-----------------------------')
+                            root_logger.info(json.dumps(change_status_response_json, indent=4))
                             root_logger.info(
                                 'Change Type Found: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
-                                info = change_status_response_json['allowedInput'][0]['info']
-                                root_logger.info('\nGetting change info for: ' + info + '\n')
-                                dvChangeInfoResponse = cps_object.get_dv_change_info(
-                                    session, info)
-                                #debug print out change info response
-                                #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
-                                if validation_type.upper() == 'http'.upper():
-                                    if dvChangeInfoResponse.status_code == 200:
-                                        dvChangeInfoResponseJson = dvChangeInfoResponse.json()
-                                        numDomains = len(
-                                            dvChangeInfoResponseJson['dv'])
-                                        if numDomains > 0:
-                                            table = PrettyTable(
-                                                ['Domain', 'Status', 'Token','Expiration'])
-                                            table.align = "l"
-                                            for everyDv in dvChangeInfoResponseJson['dv']:
-                                                #root_logger.info(json.dumps(everyDv, indent =4))
-                                                rowData = []
-                                                for everyChallenge in everyDv['challenges']:
-                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
-                                                        rowData.append(everyDv['domain'])
-                                                        rowData.append(everyDv['status'])
-                                                        rowData.append(everyChallenge['token'])
-                                                        rowData.append(everyDv['expires'])
-                                                        table.add_row(rowData)
-                                            root_logger.info(table)
-
-                                            root_logger.info('\nHTTP VALIDATION INFO:')
-                                            root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
-                                            root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')
-                                elif validation_type.upper() == 'dns'.upper():
-                                    if dvChangeInfoResponse.status_code == 200:
-                                        dvChangeInfoResponseJson = dvChangeInfoResponse.json()
-                                        numDomains = len(dvChangeInfoResponseJson['dv'])
-                                        if numDomains > 0:
-                                            table = PrettyTable(['Domain', 'Status', 'Token', 'Expiration'])
-                                            table.align = "l"
-                                            for everyDv in dvChangeInfoResponseJson['dv']:
-                                                rowData = []
-                                                for everyChallenge in everyDv['challenges']:
-                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
-                                                        rowData.append(everyDv['domain'])
-                                                        rowData.append(everyDv['status'])
-                                                        rowData.append(everyChallenge['token'])
-                                                        rowData.append(everyDv['expires'])
-                                                        table.add_row(rowData)
-                                            root_logger.info(table)
-
-                                            root_logger.info('\nDNS VALIDATION INFO:')
-                                            root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS token as follows:\n')
-                                            root_logger.info('DNS Query: DIG TXT _acme_challenge.<domain>')
-                                            root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <token>\n')
+                                lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
+                            elif changeType == 'third-party-certificate':
+                                third_party_challenges(args, cps_object, session, change_status_response_json)
                             else:
                                 root_logger.info(
                                     'Unsupported Change Type at this time: ' + changeType)
                                 exit(0)
+
                         else:
                             # have a change status object, but no allowed input data, try again later?
                             root_logger.info(
@@ -712,6 +743,87 @@ def status(args):
                 'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
+def third_party_upload(args):
+    if not args.cn and not args.enrollment_id:
+        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        exit(-1)
+    cn = args.cn
+    enrollmentsPath = os.path.join('setup')
+    base_url, session = init_config(args.edgerc, args.section)
+    cps_object = cps(base_url)
+    for root, dirs, files in os.walk(enrollmentsPath):
+        local_enrollments_file = 'enrollments.json'
+        if local_enrollments_file in files:
+            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
+                enrollments_string_content = enrollmentsFileHandler.read()
+            # root_logger.info(policyStringContent)
+            enrollments_json_content = json.loads(enrollments_string_content)
+            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
+            else:
+                root_logger.info(
+                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
+                exit(0)
+
+            # first you have to get the enrollment
+            root_logger.info('\nGetting enrollment for ' + cn +
+                             ' with enrollment-id: ' + str(enrollmentId))
+
+            enrollment_details = cps_object.get_enrollment(
+                session, enrollmentId)
+            if enrollment_details.status_code == 200:
+                enrollment_details_json = enrollment_details.json()
+                changeId = int(enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                root_logger.info('Getting change status for changeId: ' + str(changeId))
+                # second you have to get the pending change array, and then call get change status with the change id
+                change_status_response = cps_object.get_change_status(
+                    session, enrollmentId, changeId)
+                #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+                if change_status_response.status_code == 200:
+                    change_status_response_json = change_status_response.json()
+                    if len(change_status_response_json['allowedInput']) > 0:
+                        # if there is something in allowedInput, there is something to do
+                        changeType = change_status_response_json['allowedInput'][0]['type']
+                        # root_logger.info('-----------------------------')
+                        root_logger.info(json.dumps(change_status_response_json, indent=4))
+                        root_logger.info('Change Type Found: ' + changeType)
+                        if changeType == 'third-party-certificate':
+                            update_endpoint = change_status_response_json['allowedInput'][0]['update']
+                            headers = {
+                                "Content-Type": "application/vnd.akamai.cps.certificate-and-trust-chain.v1+json",
+                                "Accept": "application/vnd.akamai.cps.change-id.v1+json"
+                            }
+                            root_logger.info('Uploading Third party cert \n')
+                            uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint)
+
+                            if uploadResponse.status_code == 200:
+                                #write to file
+                                root_logger.info(json.dumps(uploadResponse.json(), indent =4))
+                            else:
+                                root_logger.info(json.dumps(uploadResponse.json(), indent =4))
+                        else:
+                            root_logger.info(
+                                'Unsupported Change Type at this time: ' + changeType)
+                            exit(0)
+
+                    else:
+                        pass
+                        exit(0)
+                else:
+                    root_logger.info(
+                        'Unable to determine change status.')
+                    exit(-1)
+
+            else:
+                root_logger.info(
+                    'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+                exit(-1)
+        else:
+            root_logger.info(
+                'Unable to find enrollments.json file. Try to run -setup.')
+            exit(-1)
 
 def list(args):
     base_url, session = init_config(args.edgerc, args.section)
