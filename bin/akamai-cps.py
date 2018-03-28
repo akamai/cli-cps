@@ -174,10 +174,9 @@ def cli():
         subparsers, "create",
         "Create a new enrollment from a yaml or json input file "
         "(Use --file to specify the filename)",
-        [{"name": "force",
-          "help": "No value"}],
-        [{"name": "file", "help": "Input filename from templates folder to read enrollment details"},
-         {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}])
+        [{"name": "force","help": "No value"},
+         {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}],
+        [{"name": "file", "help": "Input filename from templates folder to read enrollment details"}])
 
     actions["update"] = create_sub_command(
         subparsers, "update",
@@ -342,59 +341,27 @@ def setup(args, invoker='default'):
     if not os.path.exists(enrollmentsPath):
         os.makedirs(enrollmentsPath)
 
-    #check for presence of contracts_override.json file
-    #Commenting override for now
-    '''for root, dirs, files in os.walk(enrollmentsPath):
-        local_contracts_file = 'contracts_override.json'
-        if local_contracts_file in files:
-            with open(os.path.join(enrollmentsPath, local_contracts_file), mode='r') as contractsFileHandler:
-                contracts_string_content = contractsFileHandler.read()
-                contracts_file_present = True
-                if invoker == 'default':
-                    root_logger.info('Found contracts_override.json, so ignoring [cps] credentials')
-            try:
-                contracts = json.loads(contracts_string_content)['contracts']
-                contracts = set(contracts)
-                for contractId in contracts:
-                    if contractId.startswith('ctr_'):
-                        contractId = contractId.split('_')[1]
-                    if len(contractId) != 0:
-                        contracts_json_content.append(contractId)
-            except ValueError:
-                root_logger.info('Unable to read contracts from contracts_override.json. Check the format')
-                root_logger.info('Example Format:\n')
-                root_logger.info('{"contracts": ["<contract_id1>","<contract_id2>"]}\n')
-                exit(-1)'''
-
     #Fetch the available contracts
-    #note contracts_json_content is populated only if contracts_override.json has valid entries
-    #Commenting papi dependency for now
-    '''if not contracts_json_content:
-        if invoker == 'default':
-            root_logger.info('Trying to get contract details' +
-                        ' from [cps] section of ~/.edgerc file')
-        contractIds = cps_object.get_contracts(session)
-        if contractIds.status_code == 200:
-            #root_logger.info(json.dumps(contractIds.json(), indent=4))
-            contracts = contractIds.json()['contracts']['items']
-            for everyContractInfo in contracts:
-                contractId = everyContractInfo['contractId']
-                if contractId.startswith('ctr_'):
-                    contractId = contractId.split('_')[1]
-                contracts_json_content.append(contractId)
+    if invoker == 'default':
+        root_logger.info('Trying to get contract details' +
+                    ' from [cps] section of ~/.edgerc file')
+    contractIds = cps_object.get_contracts(session)
+    if contractIds.status_code == 200:
+        #root_logger.info(json.dumps(contractIds.json(), indent=4))
+        contracts = contractIds.json()
+        for contractId in contracts:
+            if contractId.startswith('ctr_'):
+                contractId = contractId.split('_')[1]
+            contracts_json_content.append(contractId)
+    else:
+        root_logger.info('Unable to fetch contracts')
+        root_logger.info(json.dumps(contractIds.json(), indent=4))
+        exit(-1)
 
-        else:
-            root_logger.info('Unable to fetch contracts')
-            root_logger.info(json.dumps(contractIds.json(), indent=4))
-            exit(-1)'''
-
-    #Adding an empty string to iterate, hack to re-use code
-    contracts_json_content.append('')
     for contractId in contracts_json_content:
-        #contractId = everyContract['contractId'].split('_')[1]
         if invoker == 'default':
             root_logger.info(
-                '\nProcessing Enrollments')
+                '\nProcessing Enrollments for contract: ' + contractId)
         enrollments_response = cps_object.list_enrollments(
             session, contractId)
         if enrollments_response.status_code == 200:
@@ -1069,24 +1036,37 @@ def create(args):
     force = args.force
     fileName = args.file
     filePath = os.path.join(fileName)
-    contract_id = args.contract_id
-    try:
-        if contractId.startswith('ctr_'):
-            contractId = contractId.split('_')[1]
 
-        # Fetch the contractId from setup/enrollments.json file
-        #Commenting out till papi access is resolved
-        '''enrollmentsPath = os.path.join('setup')
-        for root, dirs, files in os.walk(enrollmentsPath):
-            local_enrollments_file = 'enrollments.json'
-            if local_enrollments_file in files:
-                with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                    enrollments_string_content = enrollmentsFileHandler.read()
-                # root_logger.info(policyStringContent)
-                enrollments_json_content = json.loads(enrollments_string_content)
-                for every_enrollment_info in enrollments_json_content:
-                    contractId = every_enrollment_info['contractId']
-                    break'''
+    try:
+        if not args.contract_id:
+            # Fetch the contractId from setup/enrollments.json file
+            #Commenting out till papi access is resolved
+            contract_id_list = set()
+            enrollmentsPath = os.path.join('setup')
+            for root, dirs, files in os.walk(enrollmentsPath):
+                local_enrollments_file = 'enrollments.json'
+                if local_enrollments_file in files:
+                    with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
+                        enrollments_string_content = enrollmentsFileHandler.read()
+                    # root_logger.info(policyStringContent)
+                    enrollments_json_content = json.loads(enrollments_string_content)
+                    for every_enrollment_info in enrollments_json_content:
+                        contractId = every_enrollment_info['contractId']
+                        contract_id_list.add(contractId)
+
+            #Validate number of contracts
+            if len(contract_id_list) > 1:
+                root_logger.info('\nMultiple contracts exists, please specify' +
+                                '--contract-id to use for new enrollment\n')
+                exit(0)
+            else:
+                #Get element from set
+                contractId = contract_id_list.pop()
+        else:
+            contractId = args.contract_id
+            if contractId.startswith('ctr_'):
+                contractId = contractId.split('_')[1]
+
 
         try:
             with open(filePath, mode='r') as inputFileHandler:
