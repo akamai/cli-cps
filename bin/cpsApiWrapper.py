@@ -31,7 +31,7 @@ class cps(object):
         contracts_response : contracts_response
             (contracts_response) Object with all details
         """
-        contracts__url = 'https://' + self.access_hostname + '/papi/v1/contracts/'
+        contracts__url = 'https://' + self.access_hostname + '/contract-api/v1/contracts/identifiers?depth=TOP'
         contracts_response = session.get(contracts__url)
         return contracts_response
 
