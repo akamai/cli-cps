@@ -685,100 +685,84 @@ def list(args):
     cps_object = cps(base_url)
     contract_id_set = set()
     try:
-        # Fetch the contractId from setup/enrollments.json file
-        enrollmentsPath = os.path.join('setup')
-        for root, dirs, files in os.walk(enrollmentsPath):
-            local_enrollments_file = 'enrollments.json'
-            if local_enrollments_file in files:
-                with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                    enrollments_string_content = enrollmentsFileHandler.read()
-                # root_logger.info(policyStringContent)
-                enrollments_json_content = json.loads(enrollments_string_content)
-                for every_enrollment_info in enrollments_json_content:
-                    contractId = every_enrollment_info['contractId']
-                    contract_id_set.add(contractId)
-
         #Iterate all contracts
-        for contractId in contract_id_set:
-            enrollments_response = cps_object.list_enrollments(session, contractId)
-            if enrollments_response.status_code == 200:
-                #Initialize the table
+        enrollments_response = cps_object.list_enrollments(session)
+        if enrollments_response.status_code == 200:
+            #Initialize the table
+            table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
+                                 'Certificate Type', '*In-Progress*', 'Test on Staging First', ])
+            if args.show_expiration:
                 table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
-                                     'Certificate Type', '*In-Progress*', 'Test on Staging First', ])
-                if args.show_expiration:
-                    table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
-                                         'Certificate Type', '*In-Progress*', 'Test on Staging First', 'Expiration'])
-                    root_logger.info(
-                        '\nFetching list with production expiration dates. Please wait... \n')
-                table.align = "l"
+                                     'Certificate Type', '*In-Progress*', 'Test on Staging First', 'Expiration'])
+                root_logger.info(
+                    '\nFetching list with production expiration dates. Please wait... \n')
+            table.align = "l"
 
-                enrollments_json = enrollments_response.json()
-                # Find number of groups using len function
-                totalEnrollments = len(enrollments_json['enrollments'])
-                root_logger.info('\n' + str(totalEnrollments) +
-                                 ' total enrollments found in Contract: ' + contractId)
-                count = 0
-                for every_enrollment in enrollments_json['enrollments']:
-                    if 'csr' in every_enrollment:
-                        count = count + 1
-                        rowData = []
-                        #print(json.dumps(every_enrollment, indent = 4))
-                        cn = every_enrollment['csr']['cn']
-                        if args.show_expiration:
-                            root_logger.info('Processing ' + str(count) + ' of ' + str(
-                                totalEnrollments) + ': Common Name (CN): ' + cn)
-                        if 'sans' in every_enrollment['csr'] and every_enrollment['csr']['sans'] is not None:
-                            if (len(every_enrollment['csr']['sans']) > 1):
-                                cn = cn + \
-                                    ' (' + \
-                                    str(len(every_enrollment['csr']['sans'])) + ')'
-                        else:
-                            pass
-                        enrollmentId = every_enrollment['location'].split('/')[-1]
-                        # Checking pending changes to add star mark
-                        if 'pendingChanges' in every_enrollment:
-                            if len(every_enrollment['pendingChanges']) > 0:
-                                rowData.append('*' + str(enrollmentId) + '*')
-                            else:
-                                rowData.append(enrollmentId)
-                        # rowData.append(enrollmentId
-                        rowData.append(cn)
-                        certificateType = every_enrollment['validationType']
-                        if certificateType != 'third-party':
-                            certificateType = every_enrollment['validationType'] + \
-                                ' ' + every_enrollment['certificateType']
-                        rowData.append(certificateType)
-                        # rowData.append(every_enrollment['certificateType'])
-                        if 'pendingChanges' in every_enrollment:
-                            if len(every_enrollment['pendingChanges']) > 0:
-                                rowData.append('*Yes*')
-                            else:
-                                rowData.append('No')
-                        if 'changeManagement' in every_enrollment:
-                            if every_enrollment['changeManagement'] is True:
-                                rowData.append('Yes')
-                            else:
-                                rowData.append('No')
-
+            enrollments_json = enrollments_response.json()
+            # Find number of groups using len function
+            totalEnrollments = len(enrollments_json['enrollments'])
+            count = 0
+            for every_enrollment in enrollments_json['enrollments']:
+                if 'csr' in every_enrollment:
+                    count = count + 1
+                    rowData = []
+                    #print(json.dumps(every_enrollment, indent = 4))
+                    cn = every_enrollment['csr']['cn']
                     if args.show_expiration:
-                        #enrollment_details_json = enrollment_details.json()
-                        # print(json.dumps(enrollment_details.json(),indent=4))
-                        certResponse = cps_object.get_certificate(
-                            session, enrollmentId)
-                        expiration = ''
-                        if certResponse.status_code == 200:
-                            cert = x509.load_pem_x509_certificate(
-                                certResponse.json()['certificate'].encode(), default_backend())
-                            expiration = str(cert.not_valid_after.date())
+                        root_logger.info('Processing ' + str(count) + ' of ' + str(
+                            totalEnrollments) + ': Common Name (CN): ' + cn)
+                    if 'sans' in every_enrollment['csr'] and every_enrollment['csr']['sans'] is not None:
+                        if (len(every_enrollment['csr']['sans']) > 1):
+                            cn = cn + \
+                                ' (' + \
+                                str(len(every_enrollment['csr']['sans'])) + ')'
+                    else:
+                        pass
+                    enrollmentId = every_enrollment['location'].split('/')[-1]
+                    # Checking pending changes to add star mark
+                    if 'pendingChanges' in every_enrollment:
+                        if len(every_enrollment['pendingChanges']) > 0:
+                            rowData.append('*' + str(enrollmentId) + '*')
                         else:
-                            root_logger.debug(
-                                'Reason: ' + json.dumps(certResponse.json(), indent=4))
-                        rowData.append(expiration)
-                    table.add_row(rowData)
-                root_logger.info(table)
-                root_logger.info('\n** means enrollment has existing pending changes\n')
-            else:
-                root_logger.info('Could not list enrollments. Please ensure you have run setup to populate the local enrollments.json file')
+                            rowData.append(enrollmentId)
+                    # rowData.append(enrollmentId
+                    rowData.append(cn)
+                    certificateType = every_enrollment['validationType']
+                    if certificateType != 'third-party':
+                        certificateType = every_enrollment['validationType'] + \
+                            ' ' + every_enrollment['certificateType']
+                    rowData.append(certificateType)
+                    # rowData.append(every_enrollment['certificateType'])
+                    if 'pendingChanges' in every_enrollment:
+                        if len(every_enrollment['pendingChanges']) > 0:
+                            rowData.append('*Yes*')
+                        else:
+                            rowData.append('No')
+                    if 'changeManagement' in every_enrollment:
+                        if every_enrollment['changeManagement'] is True:
+                            rowData.append('Yes')
+                        else:
+                            rowData.append('No')
+
+                if args.show_expiration:
+                    #enrollment_details_json = enrollment_details.json()
+                    # print(json.dumps(enrollment_details.json(),indent=4))
+                    certResponse = cps_object.get_certificate(
+                        session, enrollmentId)
+                    expiration = ''
+                    if certResponse.status_code == 200:
+                        cert = x509.load_pem_x509_certificate(
+                            certResponse.json()['certificate'].encode(), default_backend())
+                        expiration = str(cert.not_valid_after.date())
+                    else:
+                        root_logger.debug(
+                            'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                    rowData.append(expiration)
+                table.add_row(rowData)
+            root_logger.info(table)
+            root_logger.info('\n** means enrollment has existing pending changes\n')
+        else:
+            root_logger.info('Could not list enrollments. Please ensure you have run setup to populate the local enrollments.json file')
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName +
                          ' is not found in templates folder. Exiting.\n')

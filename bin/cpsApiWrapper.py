@@ -83,7 +83,7 @@ class cps(object):
             update_enrollment_url, data=data, headers=headers)
         return update_enrollment_response
 
-    def list_enrollments(self, session, contractId):
+    def list_enrollments(self, session, contractId='optional'):
         """
         Function to List Enrollments
 
@@ -100,8 +100,13 @@ class cps(object):
         headers = {
             "Accept": "application/vnd.akamai.cps.enrollments.v4+json"
         }
-        list_enrollments_url = 'https://' + self.access_hostname + \
-            '/cps/v2/enrollments?contractId=' + contractId
+        if contractId == 'optional':
+            list_enrollments_url = 'https://' + self.access_hostname + \
+                '/cps/v2/enrollments'
+        else:
+            list_enrollments_url = 'https://' + self.access_hostname + \
+                '/cps/v2/enrollments?contractId=' + contractId
+
         list_enrollments_response = session.get(
             list_enrollments_url, headers=headers)
         return list_enrollments_response
