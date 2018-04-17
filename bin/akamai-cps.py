@@ -387,7 +387,7 @@ def setup(args, invoker='default'):
 
     if invoker == 'default':
         root_logger.info('\nEnrollments details are stored in ' + '"' +
-                         os.path.join(enrollmentsPath, 'enrollments.json') + '"\n')
+                         os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
 
 
 def show(args):
@@ -927,8 +927,8 @@ def create(args):
 
             #Validate number of contracts
             if len(contract_id_list) > 1:
-                root_logger.info('\nMultiple contracts exists, please specify' +
-                                '--contract-id to use for new enrollment\n')
+                root_logger.info('\nMultiple contracts exist, please specify' +
+                                ' --contract-id to use for new enrollment\n')
                 exit(0)
             else:
                 #Get element from set
