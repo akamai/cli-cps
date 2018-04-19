@@ -1053,10 +1053,15 @@ def cancel(args):
 
 
 def show(args):
-    format = args.format
-    if format != 'json' and format != 'yml' and format != 'yaml':
-        root_logger.info('Format can either be json or yaml or yml')
-        exit(-1)
+    if args.format:
+        format = args.format
+        if format != 'json' and format != 'yml' and format != 'yaml':
+            root_logger.info('Format can either be json or yaml or yml')
+            exit(-1)
+    else:
+        #Defaulting to json
+        format = 'json'
+
     if not args.cn and not args.enrollment_id:
         root_logger.info(
             'common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
