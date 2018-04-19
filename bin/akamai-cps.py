@@ -141,8 +141,9 @@ def cli():
         "Print and download enrollment data to a yaml or json file",
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        [{"name": "format", "help": "Accepted values are json OR yaml"}])
+         {"name": "cn", "help": "Common Name of certificate"},
+         {"name": "format", "help": "Accepted values are json OR yaml"}],
+         None)
 
     actions["status"] = create_sub_command(
         subparsers, "status", "Get any current change status for an enrollment",
