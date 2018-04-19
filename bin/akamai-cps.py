@@ -138,14 +138,7 @@ def cli():
 
     actions["show"] = create_sub_command(
         subparsers, "show",
-        "Display details of an enrollment",
-        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        None)
-
-    actions["download"] = create_sub_command(
-        subparsers, "download",
-        "Download enrollment data to a yaml or json file",
+        "Print and download enrollment data to a yaml or json file",
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
@@ -185,14 +178,6 @@ def cli():
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
-
-    #actions["proceed"] = create_sub_command(
-    #    subparsers, "proceed",
-    #    "Proceed with the next step on the enrollment",
-    #    [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-    #     {"name": "cn", "help": "Common Name of certificate"}],
-    #    None)
-
 
 
     args = parser.parse_args()
@@ -388,150 +373,6 @@ def setup(args, invoker='default'):
     if invoker == 'default':
         root_logger.info('\nEnrollments details are stored in ' + '"' +
                          os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
-
-
-def show(args):
-    if not args.cn and not args.enrollment_id:
-        root_logger.info(
-            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
-        exit(-1)
-    cn = args.cn
-    enrollmentsPath = os.path.join('setup')
-    base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url)
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
-            enrollments_json_content = json.loads(enrollments_string_content)
-
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment id.')
-                exit(0)
-
-            root_logger.info('Showing details of ' + cn +
-                             ' with enrollment-id: ' + str(enrollmentId))
-
-            enrollment_details = cps_object.get_enrollment(
-                session, enrollmentId)
-            if enrollment_details.status_code == 200:
-                enrollment_details_json = enrollment_details.json()
-                yamlData = yaml.dump(enrollment_details_json)
-                root_logger.info(json.dumps(
-                    enrollment_details.json(), indent=4))
-            else:
-                root_logger.info(
-                    'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
-                exit(-1)
-        else:
-            root_logger.info(
-                'Unable to find enrollments.json file. Try to run -setup.')
-            exit(-1)
-
-
-def proceed(args):
-    if not args.cn and not args.enrollment_id:
-        root_logger.info(
-            'common name (--cn) or enrollment-id (--enrollmentId) is mandatory')
-        exit(-1)
-    cn = args.cn
-    enrollmentsPath = os.path.join('setup')
-    base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url)
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
-            enrollments_json_content = json.loads(enrollments_string_content)
-
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-                exit(0)
-
-            # first you have to get the enrollment
-            root_logger.info('\nProceeding with next steps for ' + cn +
-                             ' with enrollment-id: ' + str(enrollmentId))
-
-            enrollment_details = cps_object.get_enrollment(
-                session, enrollmentId)
-            if enrollment_details.status_code == 200:
-                enrollment_details_json = enrollment_details.json()
-                #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-                # root_logger.info('\n\n\n')
-                if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-                    root_logger.info(
-                        'The certificate is active, there are no current pending changes to proceed with.\n')
-                elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
-                    #root_logger.info(json.dumps(enrollment_details_json, indent=4))
-                    changeId = int(
-                        enrollment_details_json['pendingChanges'][0].split('/')[-1])
-                    root_logger.info(
-                        '\nGetting change status for changeId: ' + str(changeId))
-                    # second you have to get the pending change array, and then call get change status with the change id
-                    change_status_response = cps_object.get_change_status(
-                        session, enrollmentId, changeId)
-                    # root_logger.info(change_status_response.status_code)
-                    #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-                    if change_status_response.status_code == 200:
-                        change_status_response_json = change_status_response.json()
-                        if len(change_status_response_json['allowedInput']) > 0:
-                            # if there is something in allowedInput, there is something to do?
-                            changeType = change_status_response_json['allowedInput'][0]['type']
-                            root_logger.info(
-                                '\nFound Change Type: ' + changeType)
-                            if changeType == 'lets-encrypt-challenges':
-                                endpoint = change_status_response_json['allowedInput'][0]['update']
-                                headers = {
-                                    "Content-Type": "application/vnd.akamai.cps.acknowledgement.v1+json",
-                                    "Accept": "application/vnd.akamai.cps.change-id.v1+json"
-                                }
-                                root_logger.info("Trying to update change...")
-                                #root_logger.info("\nSending POST request to " + endpoint + "\n")
-                                customPostResponse = cps_object.custom_post_call(
-                                    session, headers, endpoint)
-                                if customPostResponse.status_code == 200:
-                                    root_logger.info('Update successful...')
-                                else:
-                                    root_logger.info('Unknown Error')
-                                    root_logger.info(
-                                        '\nResponse Code: ' + str(customPostResponse.status_code))
-                                    root_logger.info('Response Body:')
-                                    root_logger.info(json.dumps(
-                                        customPostResponse.json(), indent=4))
-                            else:
-                                root_logger.info('Unknown Change Type')
-                                exit(0)
-                    else:
-                        root_logger.info(
-                            'Unable to determine change status.')
-                        exit(-1)
-                else:
-                    root_logger.info(
-                        'Unable to determine change status.')
-                    exit(-1)
-
-            else:
-                root_logger.info(
-                    'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
-                exit(-1)
-        else:
-            root_logger.info(
-                'Unable to find enrollments.json file. Try to run \'setup\'')
-            exit(-1)
 
 
 def status(args):
@@ -892,17 +733,6 @@ def audit(args):
             os.remove(output_file)
 
 
-def validate(jsonContent, certType):
-    if certType == 'OV-SAN':
-        if jsonContent['validationType'] != 'ov':
-            return 'validationType must be set to ov'
-        if jsonContent['certificateType'] != 'san':
-            return 'certificateType must be set to san'
-        if jsonContent['ra'] != 'symantec':
-            return 'ra must be set to symantec'
-    return '0'
-
-
 def create(args):
     force = args.force
     fileName = args.file
@@ -1222,7 +1052,7 @@ def cancel(args):
             exit(-1)
 
 
-def download(args):
+def show(args):
     format = args.format
     if format != 'json' and format != 'yml' and format != 'yaml':
         root_logger.info('Format can either be json or yaml or yml')
@@ -1275,6 +1105,8 @@ def download(args):
                                      default_flow_style=False)
                 else:
                     Data = json.dumps(enrollment_details.json(), indent=4)
+
+                print(Data)
 
                 with open(os.path.join(outputFolder, output_file), 'w') as outputfile_handler:
                     outputfile_handler.write(Data)
