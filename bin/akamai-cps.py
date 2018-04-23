@@ -141,7 +141,9 @@ def cli():
         "Output enrollment data to json or yaml format",
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"},
-         {"name": "format", "help": "Accepted values are json or yaml"}],
+         {"name": "json", "help": "Output format is json"},
+         {"name": "yaml", "help": "Output format is yaml"},
+         {"name": "yml", "help": "Output format is yaml"}],
          None)
 
     actions["status"] = create_sub_command(
@@ -229,7 +231,8 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            if name == 'force' or name == 'show-expiration':
+            if name == 'force' or name == 'show-expiration' or name == 'json' \
+            or name == 'yaml' or name == 'yml':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -1053,11 +1056,12 @@ def cancel(args):
 
 
 def show(args):
-    if args.format:
-        format = args.format
-        if format != 'json' and format != 'yml' and format != 'yaml':
-            root_logger.info('Format can either be json or yaml or yml')
-            exit(-1)
+    if args.json:
+        format = 'json'
+    elif args.yaml:
+        format = 'yaml'
+    elif args.yml:
+        format = 'yaml'    
     else:
         #Defaulting to json
         format = 'json'
