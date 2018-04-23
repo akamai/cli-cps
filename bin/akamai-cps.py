@@ -1088,7 +1088,7 @@ def show(args):
                     'Enrollment not found. Please double check common name (CN) or enrollment-id.')
                 exit(0)
 
-            root_logger.info('Downloading details of ' + cn +
+            root_logger.info('Getting details for ' + cn +
                              ' with enrollmentId: ' + str(enrollmentId))
 
             enrollment_details = cps_object.get_enrollment(
