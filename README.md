@@ -23,10 +23,9 @@ client_token = [CLIENT_TOKEN_HERE]
 Here is a summary of the current functionality:
 * List current enrollments
 * Generate an audit
-* Show enrollment details
+* Show enrollment details in yaml or json format
 * Create an enrollment from a yaml or json file
 * Update an enrollment from a yaml or json file
-* Download enrollment details to a yaml or json file
 * Cancel pending enrollment changes
 * View and verify current change status (DV certs only for now)
 
@@ -35,7 +34,6 @@ Main program file that wraps this functionality in a command line utility:
 * [setup](#setup)
 * [list](#list)
 * [show](#show)
-* [download](#download)
 * [status](#status)
 * [audit](#audit)
 * [create](#create)
@@ -58,22 +56,13 @@ List all current enrollments in Akamai CPS
 ```
 
 ### show
-Get specific details for an enrollment and outputs the details in raw json format. Please specify either --cn or --enrollment-id
+Get specific details for an enrollment and outputs the details in raw json or yaml format. Please specify either --cn or --enrollment-id
 
 ```bash
 %  akamai-cps show --cn sample.customer.com
 %  akamai-cps show --enrollment-id 12345
-```
-
-
-### download
-Download the enrollment detail in either json or yaml format.  
-
-```bash
-%  akamai-cps download --cn demo.devops.com --format yml
-%  akamai-cps download --cn demo.devops.com --format json
-%  akamai-cps download --enrollment-id 12345 --format json
-%  akamai-cps download --enrollment-id 12345 --format json --output-file sample.yaml
+%  akamai-cps show --cn sample.customer.com --json
+%  akamai-cps show --cn sample.customer.com --yaml
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -81,8 +70,8 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 ```
 --cn <value>                 Common name (CN) of the enrollment
 --enrollment-id <value>      Enrollment id 
---format <json/yml/yaml>     Desired file format (either json or yaml)
---output-file                Filename to be saved (optional). If not specified, will be saved in the /json or /yaml folder by default
+--json                       Output in json format (Optional: will be default if nothing specified)
+--yaml                       Output in yaml format (Optional)
 
 ```
 
