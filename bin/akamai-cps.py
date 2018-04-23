@@ -139,8 +139,7 @@ def cli():
     actions["show"] = create_sub_command(
         subparsers, "show",
         "Output enrollment data to json or yaml format",
-        [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
-         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"},
          {"name": "format", "help": "Accepted values are json or yaml"}],
          None)
@@ -1070,16 +1069,6 @@ def show(args):
     cn = args.cn
 
     outputFolder = format
-    if args.output_file:
-        output_file = args.output_file
-    elif args.cn:
-        output_file = cn.replace('.', '_') + '.' + str(format)
-    else:
-        enrollmentId = args.enrollment_id
-        output_file = enrollmentId.replace('.', '_') + '.' + str(format)
-
-    if not os.path.exists(outputFolder):
-        os.makedirs(outputFolder)
     enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
@@ -1113,11 +1102,6 @@ def show(args):
                     Data = json.dumps(enrollment_details.json(), indent=4)
 
                 print(Data)
-
-                with open(os.path.join(outputFolder, output_file), 'w') as outputfile_handler:
-                    outputfile_handler.write(Data)
-                root_logger.info('\nOutput saved in ' +
-                                 os.path.join(outputFolder, output_file) + '.\n')
             else:
                 root_logger.info(
                     'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
