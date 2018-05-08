@@ -179,7 +179,7 @@ class cps(object):
             cancel_change_url, headers=headers)
         return cancel_change_response
 
-    def get_certificate(self, session, enrollmentId):
+    def get_certificate(self, session, enrollmentId, network='production'):
         """
         Function to Get a Certificate
 
@@ -198,7 +198,7 @@ class cps(object):
         }
         get_certificate_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + \
-            str(enrollmentId) + '/deployments/production'
+            str(enrollmentId) + '/deployments/' + network
         get_certificate_response = session.get(get_certificate_url, headers=headers)
         return get_certificate_response
 
