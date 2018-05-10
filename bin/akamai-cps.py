@@ -136,17 +136,25 @@ def cli():
         [{"name": "show-expiration", "help": "shows expiration date of the enrollment"}],
         None)
 
-    actions["retrieve"] = create_sub_command(
-        subparsers, "retrieve",
+    actions["retrieve-enrollment"] = create_sub_command(
+        subparsers, "retrieve-enrollment",
         "Output enrollment data to json or yaml format",
-        [{"name": "source", "help": "Get details from either enrollment or deployment"},
-         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"},
          {"name": "json", "help": "Output format is json"},
          {"name": "yaml", "help": "Output format is yaml"},
          {"name": "yml", "help": "Output format is yaml"},
+         {"name": "network", "help": "Deployment detail of certificate in staging or production"}],
+         None)
+
+    actions["retrieve-deployed"] = create_sub_command(
+        subparsers, "retrieve-deployed",
+        "Output enrollment data to json or yaml format",
+        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"},
          {"name": "network", "help": "Deployment detail of certificate in staging or production"},
-         {"name": "cert", "help": "Get details of certificate in PEM format"},
+         {"name": "leaf", "help": "Get leaf certificate in PEM format"},
+         {"name": "chain", "help": "Get complete certificate in PEM format"},
          {"name": "info", "help": "Get details of certificate in human readable format"}],
          None)
 
@@ -155,12 +163,6 @@ def cli():
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         [{"name": "validation-type", "help": "Use http or dns"}])
-
-    actions["audit"] = create_sub_command(
-        subparsers, "audit", "Generate a report in xlsx format by default. Can also use --json/csv",
-        [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
-         {"name": "json", "help": "Output format is json"},
-         {"name": "csv", "help": "Output format is csv"}])
 
     actions["create"] = create_sub_command(
         subparsers, "create",
@@ -186,6 +188,12 @@ def cli():
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
+
+    actions["audit"] = create_sub_command(
+        subparsers, "audit", "Generate a report in xlsx format by default. Can also use --json/csv",
+        [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
+         {"name": "json", "help": "Output format is json"},
+         {"name": "csv", "help": "Output format is csv"}])
 
 
     args = parser.parse_args()
@@ -238,8 +246,8 @@ def create_sub_command(
             name = arg["name"]
             del arg["name"]
             if name == 'force' or name == 'show-expiration' or name == 'json' \
-            or name == 'yaml' or name == 'yml' or name == 'enrollment' or name == 'csv' \
-            or name == 'deployment' or name == 'info':
+            or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' \
+            or name == 'chain' or name == 'info':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -622,14 +630,17 @@ def list(args):
 
 def audit(args):
     if args.output_file:
-        output_file_name = args.output_file
+        output_file = args.output_file
     else:
+        #Default it to audit directory
+        if not os.path.exists('audit'):
+            os.makedirs('audit')
         timestamp = '{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now())
         output_file_name = 'CPSAudit_' + str(timestamp) + '.csv'
+        output_file = os.path.join('audit', output_file_name)
+
     enrollmentsPath = os.path.join('setup')
-    if not os.path.exists('audit'):
-        os.makedirs('audit')
-    output_file = os.path.join('audit', output_file_name)
+
     xlsxFile = output_file.replace('.csv', '') + '.xlsx'
     json_file = output_file.replace('.csv', '') + '.json'
     final_json_array = []
@@ -1088,7 +1099,7 @@ def cancel(args):
             exit(-1)
 
 
-def retrieve(args):
+def retrieve_enrollment(args):
     if args.json:
         format = 'json'
     elif args.yaml:
@@ -1130,83 +1141,109 @@ def retrieve(args):
 
     cn = args.cn
 
-    if args.source == 'enrollment':
-        root_logger.info('Getting details for ' + cn +
-                         ' with enrollmentId: ' + str(enrollmentId))
+    root_logger.info('Getting details for ' + cn +
+                     ' with enrollmentId: ' + str(enrollmentId))
 
-        enrollment_details = cps_object.get_enrollment(
-            session, enrollmentId)
-        if enrollment_details.status_code == 200:
-            if format == 'yaml' or format == 'yml':
-                enrollment_details_json = enrollment_details.json()
-                Data = yaml.dump(enrollment_details_json,
-                                 default_flow_style=False)
+    enrollment_details = cps_object.get_enrollment(
+        session, enrollmentId)
+    if enrollment_details.status_code == 200:
+        if format == 'yaml' or format == 'yml':
+            enrollment_details_json = enrollment_details.json()
+            Data = yaml.dump(enrollment_details_json,
+                             default_flow_style=False)
+        else:
+            Data = json.dumps(enrollment_details.json(), indent=4)
+
+        print(Data)
+    else:
+        root_logger.info(
+            'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+        exit(-1)
+
+
+def retrieve_deployed(args):
+
+    if not args.cn and not args.enrollment_id:
+        root_logger.info(
+            'common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        exit(-1)
+
+    if not args.leaf and not args.chain and not args.info:
+        root_logger.info('Either --info OR --chain OR --leaf is mandatory')
+        exit(-1)
+
+    enrollmentsPath = os.path.join('setup')
+    base_url, session = init_config(args.edgerc, args.section)
+    cps_object = cps(base_url)
+
+    for root, dirs, files in os.walk(enrollmentsPath):
+        local_enrollments_file = 'enrollments.json'
+        if local_enrollments_file in files:
+            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
+                enrollments_string_content = enrollmentsFileHandler.read()
+            enrollments_json_content = json.loads(enrollments_string_content)
+
+            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
             else:
-                Data = json.dumps(enrollment_details.json(), indent=4)
-
-            print(Data)
+                root_logger.info(
+                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
+                exit(0)
         else:
             root_logger.info(
-                'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+                '\nUnable to find enrollments.json file. Try to run setup.\n')
             exit(-1)
 
-    elif args.source == 'deployment':
-        if args.cert:
-            #Default it to production network
-            network = 'production'
-            if args.network == 'staging':
-                network = 'staging'
-            root_logger.info('Fetching ' + network + ' certificate chain for enrollment ' + str(enrollmentId))
-            deployment_details = cps_object.get_certificate(session, enrollmentId, network)
-            if deployment_details.status_code == 200:
-                if args.cert == 'chain':
-                    print(deployment_details.json()['certificate'])
-                    print(deployment_details.json()['trustChain'])
-                else:
-                    print(deployment_details.json()['certificate'])
-            elif args.cert == 'leaf':
-                root_logger.info('Unable to fetch deployment details for enrollmentId ' + str(enrollmentId))
+    cn = args.cn
+
+    #Default it to production network
+    network = 'production'
+    if args.network == 'staging':
+        network = 'staging'
+    root_logger.info('Fetching ' + network + ' certificate chain for enrollment ' + str(enrollmentId))
+    deployment_details = cps_object.get_certificate(session, enrollmentId, network)
+    if deployment_details.status_code == 200:
+        if args.chain:
+            print(deployment_details.json()['certificate'])
+            print(deployment_details.json()['trustChain'])
+        elif args.leaf:
+            print(deployment_details.json()['certificate'])
         elif args.info:
-            #Default it to production network
-            network = 'production'
-            if args.network == 'staging':
-                network = 'staging'
-            root_logger.info('Fetching ' + network + ' certificate chain for enrollment ' + str(enrollmentId))
-            deployment_details = cps_object.get_certificate(session, enrollmentId, network)
-            if deployment_details.status_code == 200:
-                cert = x509.load_pem_x509_certificate(
-                    deployment_details.json()['certificate'].encode(), default_backend())
-                expiration = str(cert.not_valid_after.date())
-                for attribute in cert.subject:
-                    subject = attribute.value
-                not_valid_before = str(cert.not_valid_before.date())
+            cert = x509.load_pem_x509_certificate(
+                deployment_details.json()['certificate'].encode(), default_backend())
+            expiration = str(cert.not_valid_after.date())
 
-                for attribute in cert.issuer:
-                    issuer = attribute.value
+            for attribute in cert.subject:
+                subject = attribute.value
+                
+            not_valid_before = str(cert.not_valid_before.date())
 
-                enrollment_details = cps_object.get_enrollment(
-                    session, enrollmentId)
+            for attribute in cert.issuer:
+                issuer = attribute.value
 
-                enrollment_details_json = enrollment_details.json()
-                #print(json.dumps(enrollment_details_json, indent=4))
-                sanList = []
-                sanList = str(enrollment_details_json['csr']['sans']).replace(
-                    ',', '').replace('[', '').replace(']', '')
-                print('\n' + 'Network: ' + network)
-                print('Common Name: ' + enrollment_details_json['csr']['cn'])
-                print('Subject: ' + str(subject))
-                print('Not Before: ' + not_valid_before)
-                print('Expires: ' + expiration)
-                print('Issuer: ' + str(issuer))
-                print('SANs: ' + sanList + '\n')
+            enrollment_details = cps_object.get_enrollment(
+                session, enrollmentId)
 
-            else:
-                root_logger.info('Unable to fetch deployment details for enrollmentId ' + str(enrollmentId))
+            enrollment_details_json = enrollment_details.json()
+            #print(json.dumps(enrollment_details_json, indent=4))
+            sanList = []
+            sanList = str(enrollment_details_json['csr']['sans']).replace(
+                ',', '').replace('[', '').replace(']', '')
+            print('\n')
+            print('Network      :   ' + network)
+            print('Common Name  :   ' + enrollment_details_json['csr']['cn'])
+            print('Subject      :   ' + str(subject))
+            print('Not Before   :   ' + not_valid_before)
+            print('Expires      :   ' + expiration)
+            print('Issuer       :   ' + str(issuer))
+            print('SANs         :   ' + sanList + '\n')
         else:
             root_logger.info('Either --info OR --cert is mandatory')
 
     else:
-        root_logger.info('--source should be either enrollment or deployment')
+        root_logger.info('Unable to fetch deployment details for enrollmentId ' + str(enrollmentId))
 
 
 def confirm_setup(args):
