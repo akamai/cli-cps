@@ -149,7 +149,7 @@ def cli():
 
     actions["retrieve-deployed"] = create_sub_command(
         subparsers, "retrieve-deployed",
-        "Output enrollment data to json or yaml format",
+        "Output information about certifcate deployed on network",
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"},
          {"name": "network", "help": "Deployment detail of certificate in staging or production"},
@@ -296,7 +296,7 @@ def check_enrollment_id(args, enrollments_json_content):
         # Error out if multiple CNs are present
         if enrollmentCount > 1:
             root_logger.info(
-                '\nMore than 1 enrollments found for same CN. Please use --enrollment-id as input\n')
+                '\nMore than 1 enrollment found for same CN. Please use --enrollment-id as input\n')
             exit(0)
         else:
             for every_enrollment_info in enrollments_json_content:
@@ -1142,7 +1142,7 @@ def retrieve_enrollment(args):
     cn = args.cn
 
     root_logger.info('Getting details for ' + cn +
-                     ' with enrollmentId: ' + str(enrollmentId))
+                     ' with enrollment-id: ' + str(enrollmentId))
 
     enrollment_details = cps_object.get_enrollment(
         session, enrollmentId)
@@ -1169,7 +1169,7 @@ def retrieve_deployed(args):
         exit(-1)
 
     if not args.leaf and not args.chain and not args.info:
-        root_logger.info('Either --info OR --chain OR --leaf is mandatory')
+        root_logger.info('Please specify Either --leaf --chain or --info')
         exit(-1)
 
     enrollmentsPath = os.path.join('setup')
@@ -1202,7 +1202,7 @@ def retrieve_deployed(args):
     network = 'production'
     if args.network == 'staging':
         network = 'staging'
-    root_logger.info('Fetching ' + network + ' certificate chain for enrollment ' + str(enrollmentId))
+    root_logger.info('Fetching ' + network + ' certificate for enrollment ' + str(enrollmentId))
     deployment_details = cps_object.get_certificate(session, enrollmentId, network)
     if deployment_details.status_code == 200:
         if args.chain:
@@ -1233,8 +1233,7 @@ def retrieve_deployed(args):
                 ',', '').replace('[', '').replace(']', '')
             print('\n')
             print('Network      :   ' + network)
-            print('Common Name  :   ' + enrollment_details_json['csr']['cn'])
-            print('Subject      :   ' + str(subject))
+            print('Common Name  :   ' + str(subject))
             print('Not Before   :   ' + not_valid_before)
             print('Expires      :   ' + expiration)
             print('Issuer       :   ' + str(issuer))
@@ -1243,7 +1242,7 @@ def retrieve_deployed(args):
             root_logger.info('Either --info OR --cert is mandatory')
 
     else:
-        root_logger.info('Unable to fetch deployment details for enrollmentId ' + str(enrollmentId))
+        root_logger.info('Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
 
 
 def confirm_setup(args):
