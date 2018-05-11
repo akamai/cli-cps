@@ -612,7 +612,7 @@ def list(args):
                     if certResponse.status_code == 200:
                         cert = x509.load_pem_x509_certificate(
                             certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date())
+                        expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
@@ -641,8 +641,8 @@ def audit(args):
 
     enrollmentsPath = os.path.join('setup')
 
-    xlsxFile = output_file.replace('.csv', '') + '.xlsx'
-    json_file = output_file.replace('.csv', '') + '.json'
+    xlsxFile = output_file.replace('.csv', '').replace('.xlsx', '').replace('.xls', '') + '.xlsx'
+    json_file = output_file.replace('.csv', '').replace('.json', '') + '.json'
     final_json_array = []
 
     with open(output_file, 'w') as fileHandler:
@@ -686,7 +686,7 @@ def audit(args):
                     if certResponse.status_code == 200:
                         cert = x509.load_pem_x509_certificate(
                             certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date())
+                        expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
@@ -777,7 +777,12 @@ def audit(args):
                             worksheet.write(r, c, col)
                 workbook.close()
                 # Delete the csv file at the end
-                os.remove(output_file)
+                if output_file.endswith('csv'):
+                    os.remove(output_file)
+
+        else:
+            root_logger.info('Unable to find local cache. Run setup again')
+            exit(0)
 
 
 def create(args):
@@ -1213,12 +1218,12 @@ def retrieve_deployed(args):
         elif args.info:
             cert = x509.load_pem_x509_certificate(
                 deployment_details.json()['certificate'].encode(), default_backend())
-            expiration = str(cert.not_valid_after.date())
+            expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
 
             for attribute in cert.subject:
                 subject = attribute.value
-                
-            not_valid_before = str(cert.not_valid_before.date())
+
+            not_valid_before = str(cert.not_valid_before.date()) + ' ' + str(cert.not_valid_before.time()) + ' UTC'
 
             for attribute in cert.issuer:
                 issuer = attribute.value
