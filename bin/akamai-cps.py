@@ -764,7 +764,7 @@ def audit(args):
                 root_logger.info('\nDone! Output file written here: ' + json_file)
                 with open(os.path.join(json_file), 'w') as f:
                     f.write(json.dumps(final_json_array, indent=4))
-                    os.remove(output_file)
+                    #os.remove(output_file)
             else:
                 root_logger.info('\nDone! Output file written here: ' + xlsxFile)
                 # Merge CSV files into XLSX
@@ -1218,6 +1218,14 @@ def retrieve_deployed(args):
         elif args.info:
             cert = x509.load_pem_x509_certificate(
                 deployment_details.json()['certificate'].encode(), default_backend())
+
+            oids = x509.oid.ExtensionOID()
+
+            ext = cert.extensions.get_extension_for_oid(oids.SUBJECT_ALTERNATIVE_NAME)
+            sanList = []
+            sanList = str(ext.value.get_values_for_type(x509.DNSName)).replace(',',
+                      '').replace('[', '').replace(']', '')
+
             expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
 
             for attribute in cert.subject:
@@ -1228,14 +1236,6 @@ def retrieve_deployed(args):
             for attribute in cert.issuer:
                 issuer = attribute.value
 
-            enrollment_details = cps_object.get_enrollment(
-                session, enrollmentId)
-
-            enrollment_details_json = enrollment_details.json()
-            #print(json.dumps(enrollment_details_json, indent=4))
-            sanList = []
-            sanList = str(enrollment_details_json['csr']['sans']).replace(
-                ',', '').replace('[', '').replace(']', '')
             print('\n')
             print('Network      :   ' + network)
             print('Common Name  :   ' + str(subject))
