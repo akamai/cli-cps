@@ -33,7 +33,8 @@ Here is a summary of the current functionality:
 Main program file that wraps this functionality in a command line utility:
 * [setup](#setup)
 * [list](#list)
-* [show](#show)
+* [retrieve-enrollment](#retrieve-enrollment)
+* [retrieve-deployed](#retrieve-deployed)
 * [status](#status)
 * [audit](#audit)
 * [create](#create)
@@ -55,14 +56,14 @@ List all current enrollments in Akamai CPS
 %  akamai-cps list
 ```
 
-### show
+### retrieve-enrollment
 Get specific details for an enrollment and outputs the details in raw json or yaml format. Please specify either --cn or --enrollment-id
 
 ```bash
-%  akamai-cps show --cn sample.customer.com
-%  akamai-cps show --enrollment-id 12345
-%  akamai-cps show --cn sample.customer.com --json
-%  akamai-cps show --cn sample.customer.com --yaml
+%  akamai-cps retrieve-enrollment --cn sample.customer.com
+%  akamai-cps retrieve-enrollment --enrollment-id 12345
+%  akamai-cps retrieve-enrollment --cn sample.customer.com --json
+%  akamai-cps retrieve-enrollment --cn sample.customer.com --yaml
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -74,6 +75,28 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 --yaml                       Output in yaml format (Optional)
 
 ```
+
+### retrieve-deployed
+Get specific details for the actual certificate deployed on the Akamai platform, including leaf, chain, or summary information. Please specify either --cn or --enrollment-id and one of --leaf, --chain, or --info arguments.
+
+```bash
+%  akamai-cps retrieve-deployed --cn sample.customer.com --info
+%  akamai-cps retrieve-deployed --enrollment-id 12345 --info --network staging
+%  akamai-cps retrieve-deployed --cn sample.customer.com --leaf --network production
+%  akamai-cps retrieve-deployed --cn sample.customer.com --chain --network staging
+```
+
+Here are the flags of interest (please specify either --cn or --enrollment-id):
+
+```
+--cn <value>                 Common name (CN) of the enrollment
+--enrollment-id <value>      Enrollment id 
+--leaf                       Leaf certificate details
+--chain                      Full chain certificate details
+--info                       Summary information about deployed certificate
+--network                    Either staging or production (optional: default is production)
+```
+
 
 ### status
 Get current change status for an enrollment. At this time only workflow for DV SAN is supported.
@@ -95,17 +118,21 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 ```
 
 ### audit
-Generate an audit of all enrollments to a .xlsx file
+Generate an audit of all enrollments to a .xlsx, .csv, or .json file
 
 ```bash
 %  akamai-cps audit
+%  akamai-cps audit --json
+%  akamai-cps audit --csv
 %  akamai-cps audit --output-file sample.xlsx
 ```
 
 Here are the flags of interest:
 
 ```
--output-file <value>          Filename to be saved (optional). 
+--csv                       csv format (optional: if not specificed, default is .xslx)
+--json                      json format (optional: if not specificed, default is .xslx)  
+--output-file <value>       Filename to be saved (optional: if not specifed, generated file will be put in audit folder). 
 ```
 
 
