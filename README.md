@@ -23,7 +23,8 @@ client_token = [CLIENT_TOKEN_HERE]
 Here is a summary of the current functionality:
 * List current enrollments
 * Generate an audit
-* Show enrollment details in yaml or json format
+* Retrieve enrollment details in yaml or json format
+* Retrieve actual certificate details for what is deployed on the platform
 * Create an enrollment from a yaml or json file
 * Update an enrollment from a yaml or json file
 * Cancel pending enrollment changes
