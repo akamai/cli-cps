@@ -161,8 +161,9 @@ def cli():
     actions["status"] = create_sub_command(
         subparsers, "status", "Get any current change status for an enrollment",
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"}],
-        [{"name": "validation-type", "help": "Use http or dns"}])
+         {"name": "cn", "help": "Common Name of certificate"},
+         {"name": "validation-type", "help": "Use http or dns"}],
+         None)
 
     actions["create"] = create_sub_command(
         subparsers, "create",
@@ -394,10 +395,7 @@ def setup(args, invoker='default'):
 
 
 def status(args):
-    validation_type = args.validation_type
-    if validation_type.upper() != 'http'.upper() and validation_type.upper() != 'dns'.upper():
-        root_logger.info('Please enter valid values for validation_type. (http/dns)')
-        exit(-1)
+
     if not args.cn and not args.enrollment_id:
         root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
@@ -453,6 +451,11 @@ def status(args):
                             root_logger.info(
                                 'Change Type Found: ' + changeType)
                             if changeType == 'lets-encrypt-challenges':
+                                validation_type = args.validation_type
+                                if validation_type.upper() != 'http'.upper() and validation_type.upper() != 'dns'.upper():
+                                    root_logger.info('Please enter valid values for --validation-type. (http/dns)')
+                                    exit(-1)
+
                                 info = change_status_response_json['allowedInput'][0]['info']
                                 root_logger.info('\nGetting change info for: ' + info + '\n')
                                 dvChangeInfoResponse = cps_object.get_dv_change_info(
