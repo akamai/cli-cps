@@ -455,6 +455,7 @@ def status(args):
                                     root_logger.info('\n --validation-type is mandatory for DV certificates/enrollments\n')
                                     exit(0)
 
+                                validation_type = args.validation_type
                                 if args.validation_type.upper() != 'http'.upper() and args.validation_type.upper() != 'dns'.upper():
                                     root_logger.info('Please enter valid values for --validation-type. (http/dns)')
                                     exit(-1)
