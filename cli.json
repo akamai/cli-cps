@@ -5,6 +5,7 @@
   "commands": [
     {
       "name": "cps",
+      "aliases": ["certs"],
       "version": "0.0.1",
       "description": "Access Certificate Provisioning System (CPS) Information"
     }
