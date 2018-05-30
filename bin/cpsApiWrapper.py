@@ -83,7 +83,7 @@ class cps(object):
             update_enrollment_url, data=data, headers=headers)
         return update_enrollment_response
 
-    def list_enrollments(self, session, contractId):
+    def list_enrollments(self, session, contractId='optional'):
         """
         Function to List Enrollments
 
@@ -100,8 +100,13 @@ class cps(object):
         headers = {
             "Accept": "application/vnd.akamai.cps.enrollments.v4+json"
         }
-        list_enrollments_url = 'https://' + self.access_hostname + \
-            '/cps/v2/enrollments?contractId=' + contractId
+        if contractId == 'optional':
+            list_enrollments_url = 'https://' + self.access_hostname + \
+                '/cps/v2/enrollments'
+        else:
+            list_enrollments_url = 'https://' + self.access_hostname + \
+                '/cps/v2/enrollments?contractId=' + contractId
+
         list_enrollments_response = session.get(
             list_enrollments_url, headers=headers)
         return list_enrollments_response
@@ -174,7 +179,7 @@ class cps(object):
             cancel_change_url, headers=headers)
         return cancel_change_response
 
-    def get_certificate(self, session, enrollmentId):
+    def get_certificate(self, session, enrollmentId, network='production'):
         """
         Function to Get a Certificate
 
@@ -193,10 +198,9 @@ class cps(object):
         }
         get_certificate_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + \
-            str(enrollmentId) + '/deployments/production'
+            str(enrollmentId) + '/deployments/' + network
         get_certificate_response = session.get(get_certificate_url, headers=headers)
         return get_certificate_response
-
 
     def get_dv_change_info(self, session, endpoint):
         """
@@ -218,7 +222,6 @@ class cps(object):
         dvChangeInfo_url = 'https://' + self.access_hostname + endpoint
         dvChangeInfo_response = session.get(dvChangeInfo_url, headers=headers)
         return dvChangeInfo_response
-
 
     def get_tp_change_info(self, session, endpoint):
         """
