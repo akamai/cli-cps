@@ -191,7 +191,7 @@ def cli():
         None)
 
     actions["csr_upload"] = create_sub_command(
-        subparsers, "csr_upload", "Upload a signed third party certificate",
+        subparsers, "csr-upload", "Upload a signed third party certificate",
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"},
          {"name": "file", "help": "File name to store the CSR of third-party cert"}],
