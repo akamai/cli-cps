@@ -471,14 +471,8 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
     changeInfoResponse = cps_object.get_tp_change_info(
         session, info)
 
-    if args.file:
-        #write to file
-        root_logger.info('Writing CSR to file: ' + args.file)
-        with open(args.file,'w') as csr_file_handler:
-            csr_file_handler.write(str(changeInfoResponse.json()['csr']))
-    else:
-        root_logger.info('Below is the CSR. Please get it signed by a CA\n')
-        print(str(changeInfoResponse.json()['csr']) + '\n')
+    root_logger.info('Below is the CSR. Please get it signed by a CA\n')
+    print(str(changeInfoResponse.json()['csr']) + '\n')
 
 
 def status(args):
