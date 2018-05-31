@@ -190,8 +190,8 @@ def cli():
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
 
-    actions["third_party_upload"] = create_sub_command(
-        subparsers, "third_party_upload", "Upload a signed third party certificate",
+    actions["csr_upload"] = create_sub_command(
+        subparsers, "csr_upload", "Upload a signed third party certificate",
         [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"},
          {"name": "file", "help": "File name to store the CSR of third-party cert"}],
@@ -1280,7 +1280,7 @@ def retrieve_deployed(args):
         root_logger.info('Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
 
 
-def third_party_upload(args):
+def csr_upload(args):
     if not args.cn and not args.enrollment_id:
         root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
