@@ -33,7 +33,6 @@ from prettytable import PrettyTable
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
-import jsonpatch
 import datetime
 from xlsxwriter.workbook import Workbook
 import csv
