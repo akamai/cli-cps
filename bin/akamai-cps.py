@@ -466,13 +466,18 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
 
 
 def third_party_challenges(args,cps_object, session, change_status_response_json):
-    info = change_status_response_json['allowedInput'][0]['info']
-    root_logger.info('\nGetting change info for: ' + info + '\n')
-    changeInfoResponse = cps_object.get_tp_change_info(
-        session, info)
+    status = change_status_response_json['statusInfo']['status']
+    if status == 'wait-upload-third-party':
+        info = change_status_response_json['allowedInput'][0]['info']
+        root_logger.info('\nGetting change info for: ' + info + '\n')
+        changeInfoResponse = cps_object.get_tp_change_info(
+            session, info)
 
-    root_logger.info('Below is the CSR. Please get it signed by a CA\n')
-    print(str(changeInfoResponse.json()['csr']) + '\n')
+        root_logger.info('Below is the CSR. Please get it signed by a CA\n')
+        print(str(changeInfoResponse.json()['csr']) + '\n')
+    else:
+        root_logger.info('Unknown Status for Third Party Certificate\n')
+        exit()
 
 
 def status(args):
@@ -522,7 +527,7 @@ def status(args):
                     # second you have to get the pending change array, and then call get change status with the change id
                     change_status_response = cps_object.get_change_status(
                         session, enrollmentId, changeId)
-                    #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+                    root_logger.info(json.dumps(change_status_response.json(), indent=4))
                     if change_status_response.status_code == 200:
                         change_status_response_json = change_status_response.json()
                         if len(change_status_response_json['allowedInput']) > 0:
@@ -535,6 +540,9 @@ def status(args):
                                 lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
                             elif changeType == 'third-party-certificate':
                                 third_party_challenges(args, cps_object, session, change_status_response_json)
+                            elif changeType == 'change-management':
+                                #print(json.dumps(change_status_response_json, indent=4))
+                                pass
                             else:
                                 root_logger.info(
                                     'Unsupported Change Type at this time: ' + changeType)
