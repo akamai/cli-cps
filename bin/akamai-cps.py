@@ -19,6 +19,7 @@ Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com
 """
 
 import json
+import inspect
 from akamai.edgegrid import EdgeGridAuth
 from cpsApiWrapper import cps
 import argparse
@@ -203,6 +204,12 @@ def cli():
          {"name": "json", "help": "Output format is json"},
          {"name": "csv", "help": "Output format is csv"}])
 
+    actions["proceed"] = create_sub_command(
+        subparsers, "proceed", "Proceed to deploy certificate",
+        [{"name": "force", "help": "Skip the stdout display and user confirmation"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+        None)
 
     args = parser.parse_args()
 
@@ -446,7 +453,7 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
             dvChangeInfoResponseJson = dvChangeInfoResponse.json()
             numDomains = len(dvChangeInfoResponseJson['dv'])
             if numDomains > 0:
-                table = PrettyTable(['Domain', 'Status', 'Token', 'Expiration'])
+                table = PrettyTable(['Domain', 'Status', 'Response Body', 'Expiration'])
                 table.align = "l"
                 for everyDv in dvChangeInfoResponseJson['dv']:
                     rowData = []
@@ -454,15 +461,15 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                         if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
                             rowData.append(everyDv['domain'])
                             rowData.append(everyDv['status'])
-                            rowData.append(everyChallenge['token'])
+                            rowData.append(everyChallenge['responseBody'])
                             rowData.append(everyDv['expires'])
                             table.add_row(rowData)
                 root_logger.info(table)
 
                 root_logger.info('\nDNS VALIDATION INFO:')
-                root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS token as follows:\n')
+                root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS response body as follows:\n')
                 root_logger.info('DNS Query: DIG TXT _acme_challenge.<domain>')
-                root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <token>\n')
+                root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <response body>\n')
 
 
 def third_party_challenges(args,cps_object, session, change_status_response_json):
@@ -477,6 +484,28 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
         print(str(changeInfoResponse.json()['csr']) + '\n')
     else:
         root_logger.info('Unknown Status for Third Party Certificate\n')
+        exit()
+
+
+def change_management(args,cps_object, session, change_status_response_json):
+    status = change_status_response_json['statusInfo']['status']
+    if status == 'wait-ack-change-management':
+        endpoint = change_status_response_json['allowedInput'][0]['info']
+        root_logger.info('\nGetting change info for: ' + endpoint + '\n')
+        headers = {
+            "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
+        }
+        changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+
+        if inspect.stack()[1][3] == 'proceed':
+            #Return the Hash to acknowledge
+            return changeInfoResponse.json()['validationResultHash']
+        else:
+            root_logger.info('Response: \n')
+            print(json.dumps(changeInfoResponse.json(), indent=4))
+
+    else:
+        root_logger.info('Unknown Status for Change Management\n')
         exit()
 
 
@@ -541,8 +570,7 @@ def status(args):
                             elif changeType == 'third-party-certificate':
                                 third_party_challenges(args, cps_object, session, change_status_response_json)
                             elif changeType == 'change-management':
-                                #print(json.dumps(change_status_response_json, indent=4))
-                                pass
+                                change_management(args, cps_object, session, change_status_response_json)
                             else:
                                 root_logger.info(
                                     'Unsupported Change Type at this time: ' + changeType)
@@ -1370,6 +1398,78 @@ def csr_upload(args):
                 'Unable to find enrollments.json file. Try to run -setup.')
             exit(-1)
 
+
+def proceed(args):
+
+    if not args.cn and not args.enrollment_id:
+        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        exit(-1)
+    cn = args.cn
+    enrollmentsPath = os.path.join('setup')
+    base_url, session = init_config(args.edgerc, args.section)
+    cps_object = cps(base_url)
+    for root, dirs, files in os.walk(enrollmentsPath):
+        local_enrollments_file = 'enrollments.json'
+        if local_enrollments_file in files:
+            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
+                enrollments_string_content = enrollmentsFileHandler.read()
+            # root_logger.info(policyStringContent)
+            enrollments_json_content = json.loads(enrollments_string_content)
+
+            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
+            if enrollmentResult['found'] is True:
+                enrollmentId = enrollmentResult['enrollmentId']
+                cn = enrollmentResult['cn']
+            else:
+                root_logger.info(
+                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
+                exit(0)
+
+            # first you have to get the enrollment
+            root_logger.info('\nGetting enrollment for ' + cn +
+                             ' with enrollment-id: ' + str(enrollmentId))
+
+            enrollment_details = cps_object.get_enrollment(
+                session, enrollmentId)
+            if enrollment_details.status_code == 200:
+                print(enrollment_details.json())
+                changeId = int(enrollment_details.json()['pendingChanges'][0].split('/')[-1])
+                print(changeId)
+                change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
+
+                changeType = change_status_response.json()['allowedInput'][0]['type']
+                print(changeType)
+                endpoint = change_status_response.json()['allowedInput'][0]['update']
+                print(endpoint)
+                hash_value = change_management(args, cps_object, session, change_status_response.json())
+                ack_text = """
+                {
+                    "acknowledgement": "acknowledge",
+                    "hash": "%s"
+                }
+                """ % (hash_value)
+                headers = {
+                    "Content-Type": "application/vnd.akamai.cps.acknowledgement-with-hash.v1+json",
+                    "Accept": "application/vnd.akamai.cps.change-id.v1+json"
+                }
+                if changeType == "change-management":
+                    print('Acknowledging\n')
+                    post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+                    if post_call_response.status_code == 200:
+                        root_logger.info('Successfully Acknowledged\n')
+                        root_logger.info(post_call_response.json())
+                    else:
+                        root_logger.info('There was a problem in acknowledgement\n')
+                        root_logger.info(post_call_response.json())
+                        exit(-1)
+            else:
+                root_logger.info('Unable to get enrollment details')
+                exit(-1)
+
+        else:
+            root_logger.info(
+                'Unable to find enrollments.json file. Try to run -setup.')
+            exit(-1)
 
 def confirm_setup(args):
     policies_dir = os.path.join(get_cache_dir(), 'setup')
