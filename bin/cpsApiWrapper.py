@@ -265,3 +265,21 @@ class cps(object):
         else:
             custom_response = session.post(custom_url, data=data, headers=headers)
         return custom_response
+
+    def custom_get_call(self, session, headers, endpoint):
+        """
+        Function to make a get  call
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        get_response : get_response
+            (get_response) Object with all details
+        """
+        tpChangeInfo_url = 'https://' + self.access_hostname + endpoint
+        tpChangeInfo_response = session.get(tpChangeInfo_url, headers=headers)
+        return tpChangeInfo_response
