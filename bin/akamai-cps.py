@@ -1432,36 +1432,52 @@ def proceed(args):
             enrollment_details = cps_object.get_enrollment(
                 session, enrollmentId)
             if enrollment_details.status_code == 200:
-                print(enrollment_details.json())
-                changeId = int(enrollment_details.json()['pendingChanges'][0].split('/')[-1])
-                print(changeId)
+                root_logger.info(json.dumps(enrollment_details.json(), indent=4))
+                if 'pendingChanges' in enrollment_details.json() and len(enrollment_details.json()['pendingChanges']) > 0:
+                    changeId = int(enrollment_details.json()['pendingChanges'][0].split('/')[-1])
+                    print(changeId)
+                else:
+                    #There are no pending changes just exit
+                    root_logger.info('There are no pending changes.\n')
+                    exit(0)
+
                 change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
 
-                changeType = change_status_response.json()['allowedInput'][0]['type']
-                print(changeType)
-                endpoint = change_status_response.json()['allowedInput'][0]['update']
-                print(endpoint)
-                hash_value = change_management(args, cps_object, session, change_status_response.json())
-                ack_text = """
-                {
-                    "acknowledgement": "acknowledge",
-                    "hash": "%s"
-                }
-                """ % (hash_value)
-                headers = {
-                    "Content-Type": "application/vnd.akamai.cps.acknowledgement-with-hash.v1+json",
-                    "Accept": "application/vnd.akamai.cps.change-id.v1+json"
-                }
-                if changeType == "change-management":
-                    print('Acknowledging\n')
-                    post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
-                    if post_call_response.status_code == 200:
-                        root_logger.info('Successfully Acknowledged\n')
-                        root_logger.info(post_call_response.json())
+                for everyChangeType in change_status_response.json()['allowedInput']:
+                    print(json.dumps(change_status_response.json(), indent=4))
+                    changeType = everyChangeType['type']
+                    print(changeType)
+                    if changeType == 'change-management':
+                        changeInfoGroup = everyChangeType
+                        endpoint = changeInfoGroup['update']
+                        print(endpoint)
+                        hash_value = change_management(args, cps_object, session, change_status_response.json())
+                        ack_text = """
+                        {
+                            "acknowledgement": "acknowledge",
+                            "hash": "%s"
+                        }
+                        """ % (hash_value)
+                        headers = {
+                            "Content-Type": "application/vnd.akamai.cps.acknowledgement-with-hash.v1+json",
+                            "Accept": "application/vnd.akamai.cps.change-id.v1+json"
+                        }
+
+                        print('Acknowledging\n')
+                        post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+                        if post_call_response.status_code == 200:
+                            root_logger.info('Successfully Acknowledged\n')
+                            root_logger.info(post_call_response.json())
+                        else:
+                            root_logger.info('There was a problem in acknowledgement\n')
+                            root_logger.info(post_call_response.json())
+                            exit(-1)
+                    elif changeType == 'third-party-certificate':
+                        root_logger.info('\nThis is in works, hold on..\n')
+                        exit(1)
                     else:
-                        root_logger.info('There was a problem in acknowledgement\n')
-                        root_logger.info(post_call_response.json())
-                        exit(-1)
+                        pass
+
             else:
                 root_logger.info('Unable to get enrollment details')
                 exit(-1)
