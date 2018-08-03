@@ -422,20 +422,22 @@ def setup(args, invoker='default'):
 
 
 def lets_encrypt_challenges(args,cps_object, session, change_status_response_json):
+    root_logger.info('\nLETS ENCRYPT CHALLENGE DETAILS:')
     if not args.validation_type:
-        root_logger.info('\n --validation-type is mandatory for DV certificates/enrollments\n')
+        root_logger.info('\nPlease specify --validation-type http or --validation-type dns for more details\n')
         exit(0)
 
     validation_type = args.validation_type
     if args.validation_type.upper() != 'http'.upper() and args.validation_type.upper() != 'dns'.upper():
-        root_logger.info('Please enter valid values for --validation-type. (http/dns)')
+        root_logger.info('Please enter valid values for --validation-type (either http or dns)')
         exit(-1)
 
     info = change_status_response_json['allowedInput'][0]['info']
-    root_logger.info('\nGetting change info for: ' + info + '\n')
+    #DEBUG: uncomment to see change info call path
+    #root_logger.info('\nGetting change info for: ' + info + '\n')
     dvChangeInfoResponse = cps_object.get_dv_change_info(
         session, info)
-    #debug print out change info response
+    #DEBUG: print out change info response
     #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
     if validation_type.upper() == 'http'.upper():
         if dvChangeInfoResponse.status_code == 200:
@@ -486,25 +488,29 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
 
 
 def third_party_challenges(args,cps_object, session, change_status_response_json):
+    root_logger.info('\n3RD PARTY CERTIFICATE DETAILS:')
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-upload-third-party':
         info = change_status_response_json['allowedInput'][0]['info']
-        root_logger.info('\nGetting change info for: ' + info + '\n')
+        #DEBUG: uncomment to see change info call path
+        #root_logger.info('\nGetting change info for: ' + info + '\n')
         changeInfoResponse = cps_object.get_tp_change_info(
             session, info)
 
-        root_logger.info('Below is the CSR. Please get it signed by a CA\n')
+        root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority\n')
         print(str(changeInfoResponse.json()['csr']) + '\n')
+        #TODO: Should we add a --file argument to output this to a file?
     else:
         root_logger.info('Unknown Status for Third Party Certificate\n')
         exit()
 
 
 def change_management(args,cps_object, session, change_status_response_json):
+    root_logger.info('\nCHANGE MANAGEMENT DETAILS:')
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
         endpoint = change_status_response_json['allowedInput'][0]['info']
-        root_logger.info('\nGetting change info for: ' + endpoint + '\n')
+        #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
         headers = {
             "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
         }
@@ -562,15 +568,16 @@ def status(args):
             # second you have to get the pending change array, and then call get change status with the change id
             change_status_response = cps_object.get_change_status(
                 session, enrollmentId, changeId)
-            root_logger.info(json.dumps(change_status_response.json(), indent=4))
+            # TODO: show this if debug?
+            #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+            # END TODO
             if change_status_response.status_code == 200:
                 change_status_response_json = change_status_response.json()
                 if len(change_status_response_json['allowedInput']) > 0:
                     # if there is something in allowedInput, there is something to do
                     changeType = change_status_response_json['allowedInput'][0]['type']
-                    # root_logger.info('-----------------------------')
-                    root_logger.info(
-                        'Change Type Found: ' + changeType)
+                    # TODO: probably don't need this line later
+                    #root_logger.info('\nChange Type Found: ' + changeType)
                     if changeType == 'lets-encrypt-challenges':
                         lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
                     elif changeType == 'third-party-certificate':
@@ -579,18 +586,18 @@ def status(args):
                         change_management(args, cps_object, session, change_status_response_json)
                     else:
                         root_logger.info(
-                            'Unsupported Change Type at this time: ' + changeType)
+                            '\nUnsupported Change Type at this time: ' + changeType)
                         exit(0)
                 else:
-                    # have a change status object, but no allowed input data, try again later?
-                    root_logger.info(
-                        'Found pending changes, but next validation steps are not ready yet. Please check back later...')
+                    # have a change status object, but no allowed input data, we have to try again later?
                     if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
                         chstatus = change_status_response_json['statusInfo']['status']
                         chdesc =  change_status_response_json['statusInfo']['description']
-                        root_logger.info('\nChange Status Information:')
-                        root_logger.info('Status = ' + chstatus)
+                        #root_logger.info('\nChange Status Information:')
+                        root_logger.info('\nCurrent Status = ' + chstatus)
                         root_logger.info('Description = ' + chdesc)
+                    root_logger.info(
+                        '\nThere are pending changes but next input steps are not ready yet. Please check back later...')
                     exit(0)
             else:
                 root_logger.info(
