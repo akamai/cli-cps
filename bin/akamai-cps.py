@@ -519,13 +519,44 @@ def change_management(args,cps_object, session, change_status_response_json):
         if inspect.stack()[1][3] == 'proceed':
             #Return the Hash to acknowledge
             return changeInfoResponse.json()['validationResultHash']
-        else:
-            root_logger.info('Response: \n')
-            print(json.dumps(changeInfoResponse.json(), indent=4))
-
+        elif inspect.stack()[1][3] == 'status':
+            print('certificateType: ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
+            for key in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'].keys():
+                print(changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key])
     else:
         root_logger.info('Unknown Status for Change Management\n')
         exit()
+
+
+def get_status(session, cps_object, enrollmentId, cn):
+    # first you have to get the enrollment
+    root_logger.info('\nGetting enrollment for ' + cn +
+                     ' with enrollment-id: ' + str(enrollmentId))
+
+    enrollment_details = cps_object.get_enrollment(session, enrollmentId)
+    if enrollment_details.status_code == 200:
+        enrollment_details_json = enrollment_details.json()
+        #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
+        if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
+            root_logger.info(
+                'The certificate is active, there are no current pending changes.')
+        elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
+            #root_logger.debug(json.dumps(enrollment_details_json, indent=4))
+            changeId = int(
+                enrollment_details_json['pendingChanges'][0].split('/')[-1])
+            root_logger.info(
+                'Getting change status for changeId: ' + str(changeId))
+            # second you have to get the pending change array, and then call get change status with the change id
+            change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
+            root_logger.debug(json.dumps(change_status_response.json(), indent=4))
+            return change_status_response
+        else:
+            root_logger.info(
+                'Unable to determine change status.')
+            exit(-1)
+    else:
+        root_logger.info('Unable to get enrollment details')
+        exit(-1)
 
 
 def status(args):
@@ -547,71 +578,99 @@ def status(args):
             'Enrollment not found. Please double check common name (CN) or enrollment-id.')
         exit(0)
 
-    # first you have to get the enrollment
-    root_logger.info('\nGetting enrollment for ' + cn +
-                     ' with enrollment-id: ' + str(enrollmentId))
+    change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
-    enrollment_details = cps_object.get_enrollment(
-        session, enrollmentId)
-    if enrollment_details.status_code == 200:
-        enrollment_details_json = enrollment_details.json()
-        #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-        if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-            root_logger.info(
-                'The certificate is active, there are no current pending changes.')
-        elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
-            #root_logger.debug(json.dumps(enrollment_details_json, indent=4))
-            changeId = int(
-                enrollment_details_json['pendingChanges'][0].split('/')[-1])
-            root_logger.info(
-                'Getting change status for changeId: ' + str(changeId))
-            # second you have to get the pending change array, and then call get change status with the change id
-            change_status_response = cps_object.get_change_status(
-                session, enrollmentId, changeId)
-            # TODO: show this if debug?
-            #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-            # END TODO
-            if change_status_response.status_code == 200:
-                change_status_response_json = change_status_response.json()
-                if len(change_status_response_json['allowedInput']) > 0:
-                    # if there is something in allowedInput, there is something to do
-                    changeType = change_status_response_json['allowedInput'][0]['type']
-                    # TODO: probably don't need this line later
-                    #root_logger.info('\nChange Type Found: ' + changeType)
-                    if changeType == 'lets-encrypt-challenges':
-                        lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
-                    elif changeType == 'third-party-certificate':
-                        third_party_challenges(args, cps_object, session, change_status_response_json)
-                    elif changeType == 'change-management':
-                        change_management(args, cps_object, session, change_status_response_json)
-                    else:
-                        root_logger.info(
-                            '\nUnsupported Change Type at this time: ' + changeType)
-                        exit(0)
-                else:
-                    # have a change status object, but no allowed input data, we have to try again later?
-                    if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
-                        chstatus = change_status_response_json['statusInfo']['status']
-                        chdesc =  change_status_response_json['statusInfo']['description']
-                        #root_logger.info('\nChange Status Information:')
-                        root_logger.info('\nCurrent Status = ' + chstatus)
-                        root_logger.info('Description = ' + chdesc)
-                    root_logger.info(
-                        '\nThere are pending changes but next input steps are not ready yet. Please check back later...')
-                    exit(0)
+    root_logger.debug(json.dumps(change_status_response.json(), indent=4))
+
+    if change_status_response.status_code == 200:
+        change_status_response_json = change_status_response.json()
+        if len(change_status_response_json['allowedInput']) > 0:
+            # if there is something in allowedInput, there is something to do
+            changeType = change_status_response_json['allowedInput'][0]['type']
+            # TODO: probably don't need this line later
+            #root_logger.info('\nChange Type Found: ' + changeType)
+            if changeType == 'lets-encrypt-challenges':
+                lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
+            elif changeType == 'third-party-certificate':
+                third_party_challenges(args, cps_object, session, change_status_response_json)
+            elif changeType == 'change-management':
+                change_management(args, cps_object, session, change_status_response_json)
             else:
                 root_logger.info(
-                    'Unable to determine change status.')
-                exit(-1)
+                    '\nUnsupported Change Type at this time: ' + changeType)
+                exit(0)
         else:
+            # have a change status object, but no allowed input data, we have to try again later?
+            if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
+                chstatus = change_status_response_json['statusInfo']['status']
+                chdesc =  change_status_response_json['statusInfo']['description']
+                #root_logger.info('\nChange Status Information:')
+                root_logger.info('\nCurrent Status = ' + chstatus)
+                root_logger.info('Description = ' + chdesc)
             root_logger.info(
-                'Unable to determine change status.')
-            exit(-1)
-
+                '\nThere are pending changes but next input steps are not ready yet. Please check back later...')
+            exit(0)
     else:
         root_logger.info(
-            'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+            'Unable to determine change status.')
         exit(-1)
+
+
+def proceed(args):
+
+    if not args.cn and not args.enrollment_id:
+        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        exit(-1)
+    cn = args.cn
+
+    base_url, session = init_config(args.edgerc, args.section)
+    cps_object = cps(base_url)
+
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment-id.')
+        exit(0)
+
+    change_status_response = get_status(session, cps_object, enrollmentId, cn)
+
+    for everyChangeType in change_status_response.json()['allowedInput']:
+        print(json.dumps(change_status_response.json(), indent=4))
+        changeType = everyChangeType['type']
+        print(changeType)
+        if changeType == 'change-management':
+            changeInfoGroup = everyChangeType
+            endpoint = changeInfoGroup['update']
+            print(endpoint)
+            hash_value = change_management(args, cps_object, session, change_status_response.json())
+            ack_text = """
+            {
+                "acknowledgement": "acknowledge",
+                "hash": "%s"
+            }
+            """ % (hash_value)
+            headers = {
+                "Content-Type": "application/vnd.akamai.cps.acknowledgement-with-hash.v1+json",
+                "Accept": "application/vnd.akamai.cps.change-id.v1+json"
+            }
+
+            print('Acknowledging\n')
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+            if post_call_response.status_code == 200:
+                root_logger.info('Successfully Acknowledged\n')
+                root_logger.info(post_call_response.json())
+            else:
+                root_logger.info('There was a problem in acknowledgement\n')
+                root_logger.info(post_call_response.json())
+                exit(-1)
+        elif changeType == 'third-party-certificate':
+            root_logger.info('\nThis is in works, hold on..\n')
+            exit(1)
+        else:
+            pass
 
 
 def list(args):
@@ -795,7 +854,7 @@ def audit(args):
                         sniInfo = '"' + sniInfo + '"'
                     else:
                         sniInfo = ''
-                    
+
                     with open(output_file, 'a') as fileHandler:
                         fileHandler.write(contract_id + ',' + str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
                                           + expiration + ', ' +
@@ -1354,83 +1413,6 @@ def csr_upload(args):
     else:
         root_logger.info(
             'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
-        exit(-1)
-
-
-def proceed(args):
-
-    if not args.cn and not args.enrollment_id:
-        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
-        exit(-1)
-    cn = args.cn
-
-    base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url)
-
-    enrollmentResult = check_enrollment_id(args)
-    if enrollmentResult['found'] is True:
-        enrollmentId = enrollmentResult['enrollmentId']
-        cn = enrollmentResult['cn']
-    else:
-        root_logger.info(
-            'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-        exit(0)
-
-    # first you have to get the enrollment
-    root_logger.info('\nGetting enrollment for ' + cn +
-                     ' with enrollment-id: ' + str(enrollmentId))
-
-    enrollment_details = cps_object.get_enrollment(
-        session, enrollmentId)
-    if enrollment_details.status_code == 200:
-        root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-        if 'pendingChanges' in enrollment_details.json() and len(enrollment_details.json()['pendingChanges']) > 0:
-            changeId = int(enrollment_details.json()['pendingChanges'][0].split('/')[-1])
-            print(changeId)
-        else:
-            #There are no pending changes just exit
-            root_logger.info('There are no pending changes.\n')
-            exit(0)
-
-        change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
-
-        for everyChangeType in change_status_response.json()['allowedInput']:
-            print(json.dumps(change_status_response.json(), indent=4))
-            changeType = everyChangeType['type']
-            print(changeType)
-            if changeType == 'change-management':
-                changeInfoGroup = everyChangeType
-                endpoint = changeInfoGroup['update']
-                print(endpoint)
-                hash_value = change_management(args, cps_object, session, change_status_response.json())
-                ack_text = """
-                {
-                    "acknowledgement": "acknowledge",
-                    "hash": "%s"
-                }
-                """ % (hash_value)
-                headers = {
-                    "Content-Type": "application/vnd.akamai.cps.acknowledgement-with-hash.v1+json",
-                    "Accept": "application/vnd.akamai.cps.change-id.v1+json"
-                }
-
-                print('Acknowledging\n')
-                post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
-                if post_call_response.status_code == 200:
-                    root_logger.info('Successfully Acknowledged\n')
-                    root_logger.info(post_call_response.json())
-                else:
-                    root_logger.info('There was a problem in acknowledgement\n')
-                    root_logger.info(post_call_response.json())
-                    exit(-1)
-            elif changeType == 'third-party-certificate':
-                root_logger.info('\nThis is in works, hold on..\n')
-                exit(1)
-            else:
-                pass
-
-    else:
-        root_logger.info('Unable to get enrollment details')
         exit(-1)
 
 
