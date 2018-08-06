@@ -506,7 +506,6 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
 
 
 def change_management(args,cps_object, session, change_status_response_json):
-    root_logger.info('\nCHANGE MANAGEMENT DETAILS:')
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
         endpoint = change_status_response_json['allowedInput'][0]['info']
@@ -515,7 +514,30 @@ def change_management(args,cps_object, session, change_status_response_json):
             "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
         }
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+        root_logger.info('\nSTATUS: Waiting for someone to acknowledge change management (please review details below)')
+        root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
+        root_logger.info('\nCERTIFICATE INFORMATION:')
+        print('Validation Type   :   ' + 'get from enrollment?')
+        print('Certificate Type  :   ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
+        print('Common Name (CN)  :   ' + '? - get from cert')
+        sanList = ''
+        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames'] is not None:
+            for everySan in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames']:        
+                sanList = sanList + everySan + ','
+            sanList = '"' + sanList + '"'
+        print('SAN Domains       :   ' + sanList)
+        print('Validity          :   ' + '? - get from cert')
+        
+        root_logger.info('\nDEPLOYMENT INFORMATION:')
+        networkType = 'Enhanced TLS (Excludes China & Russia)'
+        if (changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']) is not None:
+            networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
+        print('Network Type      :   ' + networkType)
+        print('Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
+        print('Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
+        print('SNI-Only          :   ' + '?')
 
+        root_logger.info("\nPlease run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change")
         if inspect.stack()[1][3] == 'proceed':
             #Return the Hash to acknowledge
             print(json.dumps(changeInfoResponse.json(), indent=4))
@@ -602,16 +624,12 @@ def status(args):
 
     change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
-    #root_logger.debug(json.dumps(change_status_response.json(), indent=4))
+    #DEBUG
+    root_logger.info(json.dumps(change_status_response.json(), indent=4))
 
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
-        if change_status_response_json['statusInfo']['state'] == 'running':
-            root_logger.info('\n Enrollment changes are being processed. Please wait.')
-            root_logger.info('\n Details: ' + change_status_response_json['statusInfo']['description'])
-            exit(0)
-
-        if len(change_status_response_json['allowedInput']) > 0:
+        if change_status_response_json['statusInfo']['state'] != 'running':
             # if there is something in allowedInput, there is something to do
             changeType = change_status_response_json['allowedInput'][0]['type']
             # TODO: probably don't need this line later
@@ -622,10 +640,10 @@ def status(args):
                 third_party_challenges(args, cps_object, session, change_status_response_json)
             elif changeType == 'change-management':
                 changeInfoResponse = change_management(args, cps_object, session, change_status_response_json)
-                print('certificateType: ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
-                for key in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'].keys():
-                    if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key] is not None:
-                        print(str(key) + ' : ' + str(changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key]))
+                #print('certificateType: ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
+                #for key in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'].keys():
+                #    if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key] is not None:
+                #        print(str(key) + ' : ' + str(changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key]))
             elif changeType == 'post-verification-warnings-acknowledgement':
                 changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json)
                 if changeInfoResponse.status_code == 200:
@@ -641,7 +659,8 @@ def status(args):
                 exit(0)
         else:
             # have a change status object, but no allowed input data, we have to try again later?
-            root_logger.info(json.dumps(change_status_response.json(), indent=4))
+            #DEBUG
+            #root_logger.info(json.dumps(change_status_response.json(), indent=4))
             if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
                 chstatus = change_status_response_json['statusInfo']['status']
                 chdesc =  change_status_response_json['statusInfo']['description']
