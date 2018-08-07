@@ -609,8 +609,8 @@ def status(args):
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
         if change_status_response_json['statusInfo']['state'] != 'running':
-            # if there is something in allowedInput, there is something to do
             status = change_status_response_json['statusInfo']['status']
+            # if there is something in allowedInput, there is something to do
             for every_allowed_inputdata in change_status_response_json['allowedInput']:
                 changeType = every_allowed_inputdata['type']
                 # TODO: probably don't need this line later
@@ -630,35 +630,28 @@ def status(args):
                         leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
                         certificate_details = certificate(leaf_cert)
 
-                        #changeInfoResponse = change_management(args, cps_object, session, change_status_response_json)
-                        #print('certificateType: ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
-                        #for key in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'].keys():
-                        #    if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key] is not None:
-                        #        print(str(key) + ' : ' + str(changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key]))
                         root_logger.info('\n STATUS: Waiting for someone to acknowledge change management (please review details below)')
+                        #DEBUG
                         #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
                         root_logger.info('\n CERTIFICATE INFORMATION:')
                         print(' Validation Type   :   ' + validation_type)
                         print(' Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
-                        print(' Common Name (CN)  :   ' + common_name)
-                        sanList = ''
-                        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames'] is not None:
-                            for everySan in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames']:
-                                sanList = sanList + everySan + ','
-                            sanList = '"' + sanList + '"'
-                        print(' SAN Domains       :   ' + sanList)
-                        print(' Validity          :   ' + str(certificate_details.expiration))
+                        print(' Common Name (CN)  :   ' + certificate_details.subject)
+                        print(' SAN Domains       :   ' + str(certificate_details.sanList))
+                        print(' Not Before        :   ' + str(certificate_details.not_valid_before))
+                        print(' Not After         :   ' + str(certificate_details.expiration))    
 
-
-
+                        sniOnly = 'Off'
+                        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni'] is not None:
+                            sniOnly = 'On'
                         root_logger.info('\n DEPLOYMENT INFORMATION:')
-                        networkType = ' Enhanced TLS (Excludes China & Russia)'
+                        networkType = 'Enhanced TLS (Excludes China & Russia)'
                         if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType'] is not None:
                             networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
-                            print(' Network Type      :   ' + networkType)
+                        print(' Network Type      :   ' + networkType)
                         print(' Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
                         print(' Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
-                        print(' SNI-Only          :   ' + '?')
+                        print(' SNI-Only          :   ' + sniOnly)
 
                         root_logger.info("\n Please run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
                 elif changeType == 'post-verification-warnings-acknowledgement':
