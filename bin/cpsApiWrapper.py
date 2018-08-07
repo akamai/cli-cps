@@ -11,7 +11,8 @@
 """
 
 import json
-
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 class cps(object):
     def __init__(self, access_hostname):
@@ -283,3 +284,25 @@ class cps(object):
         tpChangeInfo_url = 'https://' + self.access_hostname + endpoint
         tpChangeInfo_response = session.get(tpChangeInfo_url, headers=headers)
         return tpChangeInfo_response
+
+
+class certificate(object):
+    def __init__(self, certificate):
+        self.cert = x509.load_pem_x509_certificate(certificate.encode(), default_backend())
+
+        self.oids = x509.oid.ExtensionOID()
+
+        self.ext = self.cert.extensions.get_extension_for_oid(self.oids.SUBJECT_ALTERNATIVE_NAME)
+        self.sanList = []
+        self.sanList = str(self.ext.value.get_values_for_type(x509.DNSName)).replace(',',
+                  '').replace('[', '').replace(']', '')
+
+        self.expiration = str(self.cert.not_valid_after.date()) + ' ' + str(self.cert.not_valid_after.time()) + ' UTC'
+
+        for attribute in self.cert.subject:
+            self.subject = attribute.value
+
+        self.not_valid_before = str(self.cert.not_valid_before.date()) + ' ' + str(self.cert.not_valid_before.time()) + ' UTC'
+
+        for attribute in self.cert.issuer:
+            self.issuer = attribute.value        
