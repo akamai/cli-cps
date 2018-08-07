@@ -22,6 +22,7 @@ import json
 import inspect
 from akamai.edgegrid import EdgeGridAuth
 from cpsApiWrapper import cps
+from cpsApiWrapper import certificate
 import argparse
 import configparser
 import requests
@@ -31,8 +32,6 @@ import shutil
 import sys
 import yaml
 from prettytable import PrettyTable
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
 import jsonpatch
 import datetime
@@ -514,30 +513,7 @@ def change_management(args,cps_object, session, change_status_response_json):
             "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
         }
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
-        root_logger.info('\nSTATUS: Waiting for someone to acknowledge change management (please review details below)')
-        root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
-        root_logger.info('\nCERTIFICATE INFORMATION:')
-        print('Validation Type   :   ' + 'get from enrollment?')
-        print('Certificate Type  :   ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
-        print('Common Name (CN)  :   ' + '? - get from cert')
-        sanList = ''
-        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames'] is not None:
-            for everySan in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames']:        
-                sanList = sanList + everySan + ','
-            sanList = '"' + sanList + '"'
-        print('SAN Domains       :   ' + sanList)
-        print('Validity          :   ' + '? - get from cert')
-        
-        root_logger.info('\nDEPLOYMENT INFORMATION:')
-        networkType = 'Enhanced TLS (Excludes China & Russia)'
-        if (changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']) is not None:
-            networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
-        print('Network Type      :   ' + networkType)
-        print('Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
-        print('Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
-        print('SNI-Only          :   ' + '?')
 
-        root_logger.info("\nPlease run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change")
         if inspect.stack()[1][3] == 'proceed':
             #Return the Hash to acknowledge
             print(json.dumps(changeInfoResponse.json(), indent=4))
@@ -622,41 +598,82 @@ def status(args):
             'Enrollment not found. Please double check common name (CN) or enrollment-id.')
         exit(0)
 
+    enrollment_details = cps_object.get_enrollment(session, enrollmentId)
+    validation_type = str(enrollment_details.json()['validationType'])
+    common_name = str(enrollment_details.json()['csr']['cn'])
     change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
     #DEBUG
-    root_logger.info(json.dumps(change_status_response.json(), indent=4))
+    root_logger.debug(json.dumps(change_status_response.json(), indent=4))
 
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
         if change_status_response_json['statusInfo']['state'] != 'running':
             # if there is something in allowedInput, there is something to do
-            changeType = change_status_response_json['allowedInput'][0]['type']
-            # TODO: probably don't need this line later
-            #root_logger.info('\nChange Type Found: ' + changeType)
-            if changeType == 'lets-encrypt-challenges':
-                lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
-            elif changeType == 'third-party-certificate':
-                third_party_challenges(args, cps_object, session, change_status_response_json)
-            elif changeType == 'change-management':
-                changeInfoResponse = change_management(args, cps_object, session, change_status_response_json)
-                #print('certificateType: ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
-                #for key in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'].keys():
-                #    if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key] is not None:
-                #        print(str(key) + ' : ' + str(changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key]))
-            elif changeType == 'post-verification-warnings-acknowledgement':
-                changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json)
-                if changeInfoResponse.status_code == 200:
-                    root_logger.info('\n' + changeInfoResponse.json()['warnings'] + '\n')
-                else:
-                    print(json.dumps(changeInfoResponse.json(), indent=4))
-                    root_logger.info('Unable to fetch details')
-                    exit(-1)
+            status = change_status_response_json['statusInfo']['status']
+            for every_allowed_inputdata in change_status_response_json['allowedInput']:
+                changeType = every_allowed_inputdata['type']
+                # TODO: probably don't need this line later
+                #root_logger.info('\nChange Type Found: ' + changeType)
+                if changeType == 'lets-encrypt-challenges':
+                    lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
+                elif changeType == 'third-party-certificate':
+                    third_party_challenges(args, cps_object, session, change_status_response_json)
+                elif changeType == 'change-management':
+                    if status == 'wait-ack-change-management':
+                        endpoint = change_status_response_json['allowedInput'][0]['info']
+                        #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
+                        headers = {
+                            "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
+                        }
+                        changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+                        leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
+                        certificate_details = certificate(leaf_cert)
 
-            else:
-                root_logger.info(
-                    '\nUnsupported Change Type at this time: ' + changeType)
-                exit(0)
+                        #changeInfoResponse = change_management(args, cps_object, session, change_status_response_json)
+                        #print('certificateType: ' + changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
+                        #for key in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'].keys():
+                        #    if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key] is not None:
+                        #        print(str(key) + ' : ' + str(changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration'][key]))
+                        root_logger.info('\n STATUS: Waiting for someone to acknowledge change management (please review details below)')
+                        #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
+                        root_logger.info('\n CERTIFICATE INFORMATION:')
+                        print(' Validation Type   :   ' + validation_type)
+                        print(' Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
+                        print(' Common Name (CN)  :   ' + common_name)
+                        sanList = ''
+                        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames'] is not None:
+                            for everySan in changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni']['dnsNames']:
+                                sanList = sanList + everySan + ','
+                            sanList = '"' + sanList + '"'
+                        print(' SAN Domains       :   ' + sanList)
+                        print(' Validity          :   ' + str(certificate_details.expiration))
+
+
+
+                        root_logger.info('\n DEPLOYMENT INFORMATION:')
+                        networkType = ' Enhanced TLS (Excludes China & Russia)'
+                        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType'] is not None:
+                            networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
+                            print(' Network Type      :   ' + networkType)
+                        print(' Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
+                        print(' Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
+                        print(' SNI-Only          :   ' + '?')
+
+                        root_logger.info("\n Please run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
+                elif changeType == 'post-verification-warnings-acknowledgement':
+                    changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json)
+                    if changeInfoResponse.status_code == 200:
+                        root_logger.info('\n' + changeInfoResponse.json()['warnings'] + '\n')
+                    else:
+                        print(json.dumps(changeInfoResponse.json(), indent=4))
+                        root_logger.info(' Unable to fetch details')
+                        exit(-1)
+
+                else:
+                    root_logger.info(
+                        '\n Unsupported Change Type at this time: ' + changeType)
+                    exit(0)
         else:
             # have a change status object, but no allowed input data, we have to try again later?
             #DEBUG
@@ -829,9 +846,8 @@ def list(args):
                         session, enrollmentId)
                     expiration = ''
                     if certResponse.status_code == 200:
-                        cert = x509.load_pem_x509_certificate(
-                            certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
+                        certificate_details = certificate(certResponse.json()['certificate'])
+                        expiration = certificate_details.expiration
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
@@ -902,9 +918,8 @@ def audit(args):
                         session, enrollmentId)
                     expiration = ''
                     if certResponse.status_code == 200:
-                        cert = x509.load_pem_x509_certificate(
-                            certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
+                        certificate_details = certificate(certResponse.json()['certificate'])
+                        expiration = certificate_details.expiration
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
@@ -1395,33 +1410,16 @@ def retrieve_deployed(args):
         elif args.leaf:
             print(deployment_details.json()['certificate'])
         elif args.info:
-            cert = x509.load_pem_x509_certificate(
-                deployment_details.json()['certificate'].encode(), default_backend())
 
-            oids = x509.oid.ExtensionOID()
-
-            ext = cert.extensions.get_extension_for_oid(oids.SUBJECT_ALTERNATIVE_NAME)
-            sanList = []
-            sanList = str(ext.value.get_values_for_type(x509.DNSName)).replace(',',
-                      '').replace('[', '').replace(']', '')
-
-            expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
-
-            for attribute in cert.subject:
-                subject = attribute.value
-
-            not_valid_before = str(cert.not_valid_before.date()) + ' ' + str(cert.not_valid_before.time()) + ' UTC'
-
-            for attribute in cert.issuer:
-                issuer = attribute.value
+            certificate_details = certificate(deployment_details.json()['certificate'])
 
             print('\n')
             print('Network      :   ' + network)
-            print('Common Name  :   ' + str(subject))
-            print('Not Before   :   ' + not_valid_before)
-            print('Expires      :   ' + expiration)
-            print('Issuer       :   ' + str(issuer))
-            print('SANs         :   ' + sanList + '\n')
+            print('Common Name  :   ' + str(certificate_details.subject))
+            print('Not Before   :   ' + str(certificate_details.not_valid_before))
+            print('Expires      :   ' + str(certificate_details.expiration))
+            print('Issuer       :   ' + str(certificate_details.issuer))
+            print('SANs         :   ' + str(certificate_details.sanList) + '\n')
         else:
             root_logger.info('Either --info OR --cert is mandatory')
 
