@@ -420,6 +420,17 @@ def setup(args, invoker='default'):
                          os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
 
 
+def get_headers(category_name, action):
+    try:
+        with open('headers.json') as headers_file:
+            headers_content = headers_file.read()
+        headers_content_json = json.loads(headers_content)
+        return headers_content_json['category'][category_name][action]
+    except FileNotFoundError:
+        root_logger.info('headers.json file is not found. Update your CPS pacakage for CLI\n')
+        exit(-1)
+
+
 def lets_encrypt_challenges(args,cps_object, session, change_status_response_json):
     root_logger.info('\nLETS ENCRYPT CHALLENGE DETAILS:')
     if not args.validation_type:
@@ -504,45 +515,105 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
         exit()
 
 
-def change_management(args,cps_object, session, change_status_response_json):
+def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type, common_name):
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
-        endpoint = change_status_response_json['allowedInput'][0]['info']
-        #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
-        headers = {
-            "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
-        }
+        endpoint = allowed_inputdata['info']
+        headers = get_headers("change-management-info", "info")
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+        leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
+        certificate_details = certificate(leaf_cert)
 
-        if inspect.stack()[1][3] == 'proceed':
-            #Return the Hash to acknowledge
-            print(json.dumps(changeInfoResponse.json(), indent=4))
+        if args.command == 'status':
+            root_logger.info('\n STATUS: Waiting for someone to acknowledge change management (please review details below)')
+            #DEBUG
+            #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
+            root_logger.info('\n CERTIFICATE INFORMATION:')
+            print(' Validation Type   :   ' + validation_type)
+            print(' Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
+            print(' Common Name (CN)  :   ' + certificate_details.subject)
+            print(' SAN Domains       :   ' + str(certificate_details.sanList))
+            print(' Not Before        :   ' + str(certificate_details.not_valid_before))
+            print(' Not After         :   ' + str(certificate_details.expiration))
+
+            sniOnly = 'Off'
+            if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni'] is not None:
+                sniOnly = 'On'
+            root_logger.info('\n DEPLOYMENT INFORMATION:')
+            networkType = 'Enhanced TLS (Excludes China & Russia)'
+            if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType'] is not None:
+                networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
+            print(' Network Type      :   ' + networkType)
+            print(' Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
+            print(' Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
+            print(' SNI-Only          :   ' + sniOnly)
+
+            root_logger.info("\n Please run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
+
+        elif args.command == 'proceed':
+            #print(json.dumps(changeInfoResponse.json(), indent=4))
             if changeInfoResponse.json()['validationResult'] is not None:
                 for eachHash in changeInfoResponse.json()['validationResult']['warnings']:
-                    hashValue = eachHash['message']
-            elif changeInfoResponse.json()['validationResultHash'] is not None:
-                hashValue = changeInfoResponse.json()['validationResultHash']
-            return hashValue
+                    hash_value = eachHash['message']
 
-        elif inspect.stack()[1][3] == 'status':
-            return changeInfoResponse
+            endpoint = allowed_inputdata['update']
+            print(endpoint)
+            ack_text = """
+            {
+                "acknowledgement": "acknowledge",
+                "hash": "%s"
+            }
+            """ % (hash_value)
+            headers = get_headers("change-management-info", "update")
+
+            print(' Acknowledging\n')
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+            if post_call_response.status_code == 200:
+                root_logger.info(' Successfully Acknowledged\n')
+                root_logger.info(post_call_response.json())
+            else:
+                root_logger.info(' There was a problem in acknowledgement\n')
+                root_logger.info(post_call_response.json())
+                exit(-1)
+
     else:
         root_logger.info('Unknown Status for Change Management\n')
         exit()
 
 
-def post_verification(args,cps_object, session, change_status_response_json):
+def post_verification(args,cps_object, session, change_status_response_json, allowed_inputdata):
     root_logger.info('\nPOST VERIFICATION DETAILS:')
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-review-cert-warning':
-        endpoint = change_status_response_json['allowedInput'][0]['info']
-        #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
-        headers = {
-            "Accept": "application/vnd.akamai.cps.warnings.v1+json"
-        }
-        changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+        if args.command == 'status':
+            endpoint = allowed_inputdata['info']
+            #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
+            headers = get_headers("post-verification-warnings", "info")
+            changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
 
-        return changeInfoResponse
+            if changeInfoResponse.status_code == 200:
+                root_logger.info('\n' + changeInfoResponse.json()['warnings'] + '\n')
+            else:
+                print(json.dumps(changeInfoResponse.json(), indent=4))
+                root_logger.info(' Unable to fetch details')
+                exit(-1)
+        elif args.command == 'proceed':
+            endpoint = allowed_inputdata['update']
+            ack_text = """
+            {
+                "acknowledgement": "acknowledge"
+            }
+            """
+            headers = get_headers("post-verification-warnings", "update")
+            print('Acknowledging the warnings\n')
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+            if post_call_response.status_code == 200:
+                root_logger.info('Successfully Acknowledged\n')
+                root_logger.debug(post_call_response.json())
+            else:
+                root_logger.info('There was a problem in acknowledgement\n')
+                root_logger.info(json.dumps(post_call_response.json(), indent=4))
+                exit(-1)
     else:
         root_logger.info('Unknown Status for Post Verification\n')
         exit(-1)
@@ -611,8 +682,8 @@ def status(args):
         if change_status_response_json['statusInfo']['state'] != 'running':
             status = change_status_response_json['statusInfo']['status']
             # if there is something in allowedInput, there is something to do
-            for every_allowed_inputdata in change_status_response_json['allowedInput']:
-                changeType = every_allowed_inputdata['type']
+            for allowed_inputdata in change_status_response_json['allowedInput']:
+                changeType = allowed_inputdata['type']
                 # TODO: probably don't need this line later
                 #root_logger.info('\nChange Type Found: ' + changeType)
                 if changeType == 'lets-encrypt-challenges':
@@ -620,49 +691,11 @@ def status(args):
                 elif changeType == 'third-party-certificate':
                     third_party_challenges(args, cps_object, session, change_status_response_json)
                 elif changeType == 'change-management':
-                    if status == 'wait-ack-change-management':
-                        endpoint = change_status_response_json['allowedInput'][0]['info']
-                        #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
-                        headers = {
-                            "Accept": "application/vnd.akamai.cps.change-management-info.v3+json"
-                        }
-                        changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
-                        leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
-                        certificate_details = certificate(leaf_cert)
-
-                        root_logger.info('\n STATUS: Waiting for someone to acknowledge change management (please review details below)')
-                        #DEBUG
-                        #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
-                        root_logger.info('\n CERTIFICATE INFORMATION:')
-                        print(' Validation Type   :   ' + validation_type)
-                        print(' Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
-                        print(' Common Name (CN)  :   ' + certificate_details.subject)
-                        print(' SAN Domains       :   ' + str(certificate_details.sanList))
-                        print(' Not Before        :   ' + str(certificate_details.not_valid_before))
-                        print(' Not After         :   ' + str(certificate_details.expiration))    
-
-                        sniOnly = 'Off'
-                        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni'] is not None:
-                            sniOnly = 'On'
-                        root_logger.info('\n DEPLOYMENT INFORMATION:')
-                        networkType = 'Enhanced TLS (Excludes China & Russia)'
-                        if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType'] is not None:
-                            networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
-                        print(' Network Type      :   ' + networkType)
-                        print(' Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
-                        print(' Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
-                        print(' SNI-Only          :   ' + sniOnly)
-
-                        root_logger.info("\n Please run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
+                    change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
+                                        validation_type, common_name)
                 elif changeType == 'post-verification-warnings-acknowledgement':
-                    changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json)
-                    if changeInfoResponse.status_code == 200:
-                        root_logger.info('\n' + changeInfoResponse.json()['warnings'] + '\n')
-                    else:
-                        print(json.dumps(changeInfoResponse.json(), indent=4))
-                        root_logger.info(' Unable to fetch details')
-                        exit(-1)
-
+                    changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
+                                                            allowed_inputdata)
                 else:
                     root_logger.info(
                         '\n Unsupported Change Type at this time: ' + changeType)
@@ -687,85 +720,8 @@ def status(args):
 
 
 def proceed(args):
-
-    if not args.cn and not args.enrollment_id:
-        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
-        exit(-1)
-    cn = args.cn
-
-    base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url)
-
-    enrollmentResult = check_enrollment_id(args)
-    if enrollmentResult['found'] is True:
-        enrollmentId = enrollmentResult['enrollmentId']
-        cn = enrollmentResult['cn']
-    else:
-        root_logger.info(
-            'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-        exit(0)
-
-    change_status_response = get_status(session, cps_object, enrollmentId, cn)
-
-    for everyChangeType in change_status_response.json()['allowedInput']:
-        print(json.dumps(change_status_response.json(), indent=4))
-        changeType = everyChangeType['type']
-        print(changeType)
-        if changeType == 'change-management':
-            changeInfoGroup = everyChangeType
-            endpoint = changeInfoGroup['update']
-            print(endpoint)
-            hash_value = change_management(args, cps_object, session, change_status_response.json())
-            ack_text = """
-            {
-                "acknowledgement": "acknowledge",
-                "hash": "%s"
-            }
-            """ % (hash_value)
-            headers = {
-                "Content-Type": "application/vnd.akamai.cps.acknowledgement-with-hash.v1+json",
-                "Accept": "application/vnd.akamai.cps.change-id.v1+json"
-            }
-
-            print('Acknowledging\n')
-            print(ack_text)
-            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
-            if post_call_response.status_code == 200:
-                root_logger.info('Successfully Acknowledged\n')
-                root_logger.info(post_call_response.json())
-            else:
-                root_logger.info('There was a problem in acknowledgement\n')
-                root_logger.info(post_call_response.json())
-                exit(-1)
-        elif changeType == 'third-party-certificate':
-            root_logger.info('\nThis is in works, hold on..\n')
-            exit(1)
-        elif changeType == 'post-verification-warnings-acknowledgement':
-            endpoint = everyChangeType['update']
-            print(endpoint)
-            ack_text = """
-            {
-                "acknowledgement": "acknowledge"
-            }
-            """
-            headers = {
-                "Content-Type": "application/vnd.akamai.cps.acknowledgement.v1+json",
-                "Accept": "application/vnd.akamai.cps.change-id.v1+json"
-            }
-
-            print('Acknowledging\n')
-            print(ack_text)
-            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
-            if post_call_response.status_code == 200:
-                root_logger.info('Successfully Acknowledged\n')
-                root_logger.info(post_call_response.json())
-            else:
-                root_logger.info('There was a problem in acknowledgement\n')
-                root_logger.info(post_call_response.json())
-                exit(-1)
-
-        else:
-            pass
+    #Call status to re-use code
+    status(args)
 
 
 def list(args):
@@ -1461,10 +1417,7 @@ def csr_upload(args):
                 root_logger.info('Change Type Found: ' + changeType)
                 if changeType == 'third-party-certificate':
                     update_endpoint = change_status_response_json['allowedInput'][0]['update']
-                    headers = {
-                        "Content-Type": "application/vnd.akamai.cps.certificate-and-trust-chain.v1+json",
-                        "Accept": "application/vnd.akamai.cps.change-id.v1+json"
-                    }
+                    headers = get_headers("third-party-csr", "update")
                     root_logger.info('Uploading Third party cert \n')
                     uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint)
 
