@@ -515,7 +515,7 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
         exit()
 
 
-def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type, common_name):
+def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
         endpoint = allowed_inputdata['info']
@@ -671,7 +671,6 @@ def status(args):
 
     enrollment_details = cps_object.get_enrollment(session, enrollmentId)
     validation_type = str(enrollment_details.json()['validationType'])
-    common_name = str(enrollment_details.json()['csr']['cn'])
     change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
     #DEBUG
@@ -679,7 +678,15 @@ def status(args):
 
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
-        if change_status_response_json['statusInfo']['state'] != 'running':
+        if change_status_response_json['statusInfo']['state'] == 'error':
+            if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
+                errorcode = change_status_response_json['statusInfo']['error']['code']
+                errordesc =  change_status_response_json['statusInfo']['error']['description']
+                root_logger.info('\nError Code = ' + errorcode)
+                root_logger.info('Error Description = ' + errordesc)
+            root_logger.info(
+                '\nERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')                           
+        elif change_status_response_json['statusInfo']['state'] != 'running':
             status = change_status_response_json['statusInfo']['status']
             # if there is something in allowedInput, there is something to do
             for allowed_inputdata in change_status_response_json['allowedInput']:
@@ -692,7 +699,7 @@ def status(args):
                     third_party_challenges(args, cps_object, session, change_status_response_json)
                 elif changeType == 'change-management':
                     change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
-                                        validation_type, common_name)
+                                        validation_type)
                 elif changeType == 'post-verification-warnings-acknowledgement':
                     changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
                                                             allowed_inputdata)
