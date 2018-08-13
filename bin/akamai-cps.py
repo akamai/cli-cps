@@ -190,13 +190,6 @@ def cli():
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
 
-    actions["csr_upload"] = create_sub_command(
-        subparsers, "csr-upload", "Upload a signed third party certificate",
-        [{"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of certificate"},
-         {"name": "file", "help": "File name to store the CSR of third-party cert"}],
-        None)
-
     actions["audit"] = create_sub_command(
         subparsers, "audit", "Generate a report in xlsx format by default. Can also use --json/csv",
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
@@ -536,7 +529,8 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             if uploadResponse.status_code == 200:
                 #write to file
                 root_logger.info(' Successfully uploaded the certificate\n')
-                root_logger.info(json.dumps(uploadResponse.json(), indent =4))
+                root_logger.info(' Check the Status using status command for further steps and current progress\n')
+                root_logger.debug(json.dumps(uploadResponse.json(), indent =4))
             else:
                 root_logger.info(' Error in uploading or uploaded certificate\n')
                 root_logger.info(json.dumps(uploadResponse.json(), indent =4))
@@ -601,7 +595,8 @@ def change_management(args,cps_object, session, change_status_response_json, all
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
             if post_call_response.status_code == 200:
                 root_logger.info(' Successfully Acknowledged\n')
-                root_logger.info(post_call_response.json())
+                root_logger.info(' Check the Status using status command for further steps and current progress\n')
+                root_logger.debug(post_call_response.json())
             else:
                 root_logger.info(' There was a problem in acknowledgement\n')
                 root_logger.info(post_call_response.json())
@@ -1413,75 +1408,6 @@ def retrieve_deployed(args):
 
     else:
         root_logger.info('Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
-
-
-def csr_upload(args):
-    if not args.cn and not args.enrollment_id:
-        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
-        exit(-1)
-    cn = args.cn
-    base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url)
-
-    enrollmentResult = check_enrollment_id(args)
-    if enrollmentResult['found'] is True:
-        enrollmentId = enrollmentResult['enrollmentId']
-        cn = enrollmentResult['cn']
-    else:
-        root_logger.info(
-            'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-        exit(0)
-
-    # first you have to get the enrollment
-    root_logger.info('\nGetting enrollment for ' + cn +
-                     ' with enrollment-id: ' + str(enrollmentId))
-
-    enrollment_details = cps_object.get_enrollment(
-        session, enrollmentId)
-    if enrollment_details.status_code == 200:
-        enrollment_details_json = enrollment_details.json()
-        changeId = int(enrollment_details_json['pendingChanges'][0].split('/')[-1])
-        root_logger.info('Getting change status for changeId: ' + str(changeId))
-        # second you have to get the pending change array, and then call get change status with the change id
-        change_status_response = cps_object.get_change_status(
-            session, enrollmentId, changeId)
-        #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-        if change_status_response.status_code == 200:
-            change_status_response_json = change_status_response.json()
-            if len(change_status_response_json['allowedInput']) > 0:
-                # if there is something in allowedInput, there is something to do
-                changeType = change_status_response_json['allowedInput'][0]['type']
-                # root_logger.info('-----------------------------')
-                root_logger.info(json.dumps(change_status_response_json, indent=4))
-                root_logger.info('Change Type Found: ' + changeType)
-                if changeType == 'third-party-certificate':
-                    update_endpoint = change_status_response_json['allowedInput'][0]['update']
-                    headers = get_headers("third-party-csr", "update")
-                    root_logger.info('Uploading Third party cert \n')
-                    uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint)
-
-                    if uploadResponse.status_code == 200:
-                        #write to file
-                        root_logger.info(json.dumps(uploadResponse.json(), indent =4))
-                    else:
-                        root_logger.info(json.dumps(uploadResponse.json(), indent =4))
-                else:
-                    root_logger.info(
-                        'Unsupported Change Type at this time: ' + changeType)
-                    exit(0)
-
-            else:
-                pass
-                exit(0)
-        else:
-            root_logger.info(
-                'Unable to determine change status.')
-            exit(-1)
-
-    else:
-        root_logger.info(
-            'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
-        exit(-1)
 
 
 def confirm_setup(args):
