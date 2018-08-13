@@ -206,6 +206,8 @@ def cli():
     actions["proceed"] = create_sub_command(
         subparsers, "proceed", "Proceed to deploy certificate",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
+         {"name": "cert-file", "help": "Signed certificate"},
+         {"name": "trust-file", "help": "Signed certificate of CA"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
@@ -291,7 +293,6 @@ def create_sub_command(
         action="store_true")
 
     return action
-
 
 
 def check_enrollment_id(args):
@@ -497,22 +498,52 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                 root_logger.info('Expected Result: _acme_challenge.<domain> 7200 IN TXT <response body>\n')
 
 
-def third_party_challenges(args,cps_object, session, change_status_response_json):
-    root_logger.info('\n3RD PARTY CERTIFICATE DETAILS:')
+def third_party_challenges(args,cps_object, session, change_status_response_json, allowed_inputdata):
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-upload-third-party':
-        info = change_status_response_json['allowedInput'][0]['info']
-        #DEBUG: uncomment to see change info call path
-        #root_logger.info('\nGetting change info for: ' + info + '\n')
-        changeInfoResponse = cps_object.get_tp_change_info(
-            session, info)
+        if args.command == 'status':
+            root_logger.info('\n 3RD PARTY CERTIFICATE DETAILS:')
+            info = allowed_inputdata['info']
+            #DEBUG: uncomment to see change info call path
+            #root_logger.info('\nGetting change info for: ' + info + '\n')
+            changeInfoResponse = cps_object.get_tp_change_info(session, info)
 
-        root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority\n')
-        print(str(changeInfoResponse.json()['csr']) + '\n')
-        #TODO: Should we add a --file argument to output this to a file?
+            root_logger.info(' Below is the CSR. Please get it signed by your desired certificate authority\n')
+            print(str(changeInfoResponse.json()['csr']) + '\n')
+            #TODO: Should we add a --file argument to output this to a file?
+        elif args.command == 'proceed':
+            root_logger.info(' Validating the certificate\n')
+            #args.file is already verified so no need to catch exception
+
+            with open(args.cert_file,'r') as certificare_file_handler:
+                certificate_content = certificare_file_handler.read()
+
+            cert_object = certificate(certificate_content)
+            cert_and_trust = {}
+            cert_and_trust['certificate'] = certificate_content
+
+            if args.trust_file:
+                with open(args.trust_file,'r') as trust_file_handler:
+                    trust_content = trust_file_handler.read()
+                cert_and_trust['trustChain'] = trust_content
+
+            certificate_content_str = json.dumps(cert_and_trust)
+            update_endpoint = allowed_inputdata['update']
+            headers = get_headers("third-party-csr", "update")
+            root_logger.info('Uploading Third party cert \n')
+            uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
+
+            if uploadResponse.status_code == 200:
+                #write to file
+                root_logger.info(' Successfully uploaded the certificate\n')
+                root_logger.info(json.dumps(uploadResponse.json(), indent =4))
+            else:
+                root_logger.info(' Error in uploading or uploaded certificate\n')
+                root_logger.info(json.dumps(uploadResponse.json(), indent =4))
     else:
-        root_logger.info('Unknown Status for Third Party Certificate\n')
-        exit()
+        root_logger.info(json.dumps(change_status_response_json, indent=4))
+        pass
+        #DO NOT exit here, as allowedInput can have multiple values
 
 
 def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
@@ -584,7 +615,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
 def post_verification(args,cps_object, session, change_status_response_json, allowed_inputdata):
     root_logger.info('\nPOST VERIFICATION DETAILS:')
     status = change_status_response_json['statusInfo']['status']
-    if status == 'wait-review-cert-warning':
+    if status == 'wait-review-cert-warning' or status == 'wait-review-third-party-cert':
         if args.command == 'status':
             endpoint = allowed_inputdata['info']
             #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
@@ -685,7 +716,7 @@ def status(args):
                 root_logger.info('\nError Code = ' + errorcode)
                 root_logger.info('Error Description = ' + errordesc)
             root_logger.info(
-                '\nERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')                           
+                '\nERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
         elif change_status_response_json['statusInfo']['state'] != 'running':
             status = change_status_response_json['statusInfo']['status']
             # if there is something in allowedInput, there is something to do
@@ -696,7 +727,8 @@ def status(args):
                 if changeType == 'lets-encrypt-challenges':
                     lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
                 elif changeType == 'third-party-certificate':
-                    third_party_challenges(args, cps_object, session, change_status_response_json)
+                    third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
+                    print(change_status_response_json)
                 elif changeType == 'change-management':
                     change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
                                         validation_type)
@@ -715,10 +747,10 @@ def status(args):
                 chstatus = change_status_response_json['statusInfo']['status']
                 chdesc =  change_status_response_json['statusInfo']['description']
                 #root_logger.info('\nChange Status Information:')
-                root_logger.info('\nCurrent Status = ' + chstatus)
-                root_logger.info('Description = ' + chdesc)
+                root_logger.info('\n Current Status = ' + chstatus)
+                root_logger.info(' Description = ' + chdesc)
                 root_logger.info(
-                '\nThere are pending changes but next input steps are not ready yet. Please check back later...')
+                '\n There are pending changes but next input steps are not ready yet. Please check back later...')
             exit(0)
     else:
         root_logger.info(
