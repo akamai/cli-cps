@@ -507,9 +507,12 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
         elif args.command == 'proceed':
             root_logger.info(' Validating the certificate\n')
             #args.file is already verified so no need to catch exception
-
-            with open(args.cert_file,'r') as certificare_file_handler:
-                certificate_content = certificare_file_handler.read()
+            try:
+                with open(args.cert_file,'r') as certificare_file_handler:
+                    certificate_content = certificare_file_handler.read()
+            except (FileNotFoundError, Exception) as e:
+                root_logger.info(e)
+                exit(-1)
 
             cert_object = certificate(certificate_content)
             cert_and_trust = {}
@@ -541,11 +544,18 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
 
 
 def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
+    print(json.dumps(change_status_response_json, indent=4))
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
         endpoint = allowed_inputdata['info']
         headers = get_headers("change-management-info", "info")
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+
+        if changeInfoResponse.status_code != 200:
+            root_logger.info(' Unable to fetch Information\n')
+            root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
+            exit(-1)
+
         leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
         certificate_details = certificate(leaf_cert)
 
