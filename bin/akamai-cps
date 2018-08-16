@@ -379,8 +379,6 @@ def setup(args, invoker='default'):
         else:
             root_logger.info(
                 'Unable to find enrollments')
-            root_logger.debug(json.dumps(
-                enrollments_response.json(), indent=4))
             # Cannot exit here as there might be other contracts which might
             # have enrollments
             # exit(-1)
