@@ -506,7 +506,9 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             #TODO: Should we add a --file argument to output this to a file?
         elif args.command == 'proceed':
             root_logger.info(' Validating the certificate\n')
-            #args.file is already verified so no need to catch exception
+            if not args.cert_file:
+                root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
+                exit(-1)
             try:
                 with open(args.cert_file,'r') as certificare_file_handler:
                     certificate_content = certificare_file_handler.read()
@@ -544,13 +546,13 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
 
 
 def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
-    print(json.dumps(change_status_response_json, indent=4))
+    #print(json.dumps(change_status_response_json, indent=4))
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
         endpoint = allowed_inputdata['info']
         headers = get_headers("change-management-info", "info")
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
-
+        #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
         if changeInfoResponse.status_code != 200:
             root_logger.info(' Unable to fetch Information\n')
             root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
@@ -732,11 +734,13 @@ def status(args):
                 if changeType == 'lets-encrypt-challenges':
                     lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
                 elif changeType == 'third-party-certificate':
-                    third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
                     print(change_status_response_json)
+                    third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
                 elif changeType == 'change-management':
+                    print(change_status_response_json)
                     change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
                                         validation_type)
+
                 elif changeType == 'post-verification-warnings-acknowledgement':
                     changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
                                                             allowed_inputdata)
