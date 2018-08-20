@@ -361,6 +361,7 @@ def setup(args, invoker='default'):
         root_logger.info('Trying to get contract details' +
                     ' from [cps] section of ~/.edgerc file')
     contractIds = cps_object.get_contracts(session)
+
     if contractIds.status_code == 200:
         #root_logger.info(json.dumps(contractIds.json(), indent=4))
         contracts = contractIds.json()
@@ -398,13 +399,11 @@ def setup(args, invoker='default'):
                         enrollmentOutput.append(enrollmentInfo)
 
         else:
-            root_logger.info(
-                'Unable to find enrollments')
-            root_logger.debug(json.dumps(
-                enrollments_response.json(), indent=4))
-            # Cannot exit here as there might be other contracts which might
-            # have enrollments
-            # exit(-1)
+            root_logger.info('Unable to find enrollments')
+            pass
+            #root_logger.debug(json.dumps(enrollments_response.json(), indent=4))
+            # Cannot exit here as there might be other contracts which might have enrollments
+
     with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
         enrollmentsFile.write(
             json.dumps(enrollmentOutput, indent=4))
@@ -412,6 +411,7 @@ def setup(args, invoker='default'):
     if invoker == 'default':
         root_logger.info('\nEnrollments details are stored in ' + '"' +
                          os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
+
 
 
 def get_headers(category_name, action):
@@ -734,10 +734,10 @@ def status(args):
                 if changeType == 'lets-encrypt-challenges':
                     lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
                 elif changeType == 'third-party-certificate':
-                    print(change_status_response_json)
+                    #print(change_status_response_json)
                     third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
                 elif changeType == 'change-management':
-                    print(change_status_response_json)
+                    #print(change_status_response_json)
                     change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
                                         validation_type)
 
