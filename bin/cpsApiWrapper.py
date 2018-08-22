@@ -224,30 +224,10 @@ class cps(object):
         dvChangeInfo_response = session.get(dvChangeInfo_url, headers=headers)
         return dvChangeInfo_response
 
-    def get_tp_change_info(self, session, endpoint):
-        """
-        Function to get third party change details
-
-        Parameters
-        -----------
-        session : <string>
-            An EdgeGrid Auth akamai session object
-
-        Returns
-        -------
-        tpChangeInfo_response : tpChangeInfo_response
-            (tpChangeInfo_response) Object with all details
-        """
-        headers = {
-            "Accept": "application/vnd.akamai.cps.csr.v1+json"
-        }
-        tpChangeInfo_url = 'https://' + self.access_hostname + endpoint
-        tpChangeInfo_response = session.get(tpChangeInfo_url, headers=headers)
-        return tpChangeInfo_response
 
     def custom_post_call(self, session, headers, endpoint, data='optional'):
         """
-        Function to Get a Certificate
+        Function to make a post call to a custom endpoint
 
         Parameters
         -----------
@@ -256,8 +236,8 @@ class cps(object):
 
         Returns
         -------
-        customCall_response : customCall_response
-            (customCall_response) Object with all details
+        custom_response : custom_response
+            (custom_response) Object with all details
         """
 
         custom_url = 'https://' + self.access_hostname + endpoint
@@ -269,7 +249,7 @@ class cps(object):
 
     def custom_get_call(self, session, headers, endpoint):
         """
-        Function to make a get  call
+        Function to make a get call with a custom endpoint
 
         Parameters
         -----------
@@ -281,21 +261,25 @@ class cps(object):
         get_response : get_response
             (get_response) Object with all details
         """
-        tpChangeInfo_url = 'https://' + self.access_hostname + endpoint
-        tpChangeInfo_response = session.get(tpChangeInfo_url, headers=headers)
-        return tpChangeInfo_response
+        custom_url = 'https://' + self.access_hostname + endpoint
+        custom_response = session.get(custom_url, headers=headers)
+        return custom_response
 
-
+# Below class encapsulates the certificate members, this is done to
+# decode a certificate into its members or fields
 class certificate(object):
     def __init__(self, certificate):
         self.cert = x509.load_pem_x509_certificate(certificate.encode(), default_backend())
 
         self.oids = x509.oid.ExtensionOID()
-
-        self.ext = self.cert.extensions.get_extension_for_oid(self.oids.SUBJECT_ALTERNATIVE_NAME)
-        self.sanList = []
-        self.sanList = str(self.ext.value.get_values_for_type(x509.DNSName)).replace(',',
-                  '').replace('[', '').replace(']', '')
+        try:
+            self.ext = self.cert.extensions.get_extension_for_oid(self.oids.SUBJECT_ALTERNATIVE_NAME)
+            self.sanList = []
+            self.sanList = str(self.ext.value.get_values_for_type(x509.DNSName)).replace(',',
+                      '').replace('[', '').replace(']', '')
+        except Exception:
+            #Not every certificate will have SAN
+            pass
 
         self.expiration = str(self.cert.not_valid_after.date()) + ' ' + str(self.cert.not_valid_after.time()) + ' UTC'
 
@@ -305,4 +289,4 @@ class certificate(object):
         self.not_valid_before = str(self.cert.not_valid_before.date()) + ' ' + str(self.cert.not_valid_before.time()) + ' UTC'
 
         for attribute in self.cert.issuer:
-            self.issuer = attribute.value        
+            self.issuer = attribute.value
