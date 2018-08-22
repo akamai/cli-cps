@@ -599,28 +599,26 @@ def change_management(args,cps_object, session, change_status_response_json, all
                 hash_value = changeInfoResponse.json()['validationResultHash']
 
             endpoint = allowed_inputdata['update']
-            #print(endpoint)
-            ack_text = """
+            ack_body = """
             {
                 "acknowledgement": "acknowledge",
                 "hash": "%s"
             }
             """ % (hash_value)
             headers = get_headers("change-management-info", "update")
-            print(ack_text)
-            print(' Acknowledging\n')
-            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+            print('Trying to acknowledge change...')
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
-                root_logger.info(' Successfully Acknowledged\n')
-                root_logger.info(' Check the Status using status command for further steps and current progress\n')
+                root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
+                root_logger.info('\n You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
-                root_logger.info(' There was a problem in acknowledgement\n')
-                root_logger.info(post_call_response.json())
+                root_logger.info('Invalid API Response Code: there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
+                root_logger.debug(post_call_response.json())
                 exit(-1)
 
     else:
-        root_logger.info('Unknown Status for Change Management\n')
+        root_logger.info('Unknown Status for Change Management: ' + status)
         exit()
 
 
@@ -642,14 +640,14 @@ def post_verification(args,cps_object, session, change_status_response_json, all
                 exit(-1)
         elif args.command == 'proceed':
             endpoint = allowed_inputdata['update']
-            ack_text = """
+            ack_body = """
             {
                 "acknowledgement": "acknowledge"
             }
             """
             headers = get_headers("post-verification-warnings", "update")
             print('Acknowledging the warnings\n')
-            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
                 root_logger.info('Successfully Acknowledged\n')
                 root_logger.debug(post_call_response.json())
