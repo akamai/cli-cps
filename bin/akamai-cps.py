@@ -413,7 +413,6 @@ def setup(args, invoker='default'):
                          os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
 
 
-
 def get_headers(category_name, action):
     try:
         with open('headers.json') as headers_file:
@@ -496,10 +495,12 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
     if status == 'wait-upload-third-party':
         if args.command == 'status':
             root_logger.info('\n 3RD PARTY CERTIFICATE DETAILS:')
-            info = allowed_inputdata['info']
+            info_endpoint = allowed_inputdata['info']
             #DEBUG: uncomment to see change info call path
             #root_logger.info('\nGetting change info for: ' + info + '\n')
-            changeInfoResponse = cps_object.get_tp_change_info(session, info)
+            headers = get_headers('third-party-csr', action='info')
+            changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
+
 
             root_logger.info(' Below is the CSR. Please get it signed by your desired certificate authority\n')
             print(str(changeInfoResponse.json()['csr']) + '\n')
