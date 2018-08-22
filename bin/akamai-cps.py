@@ -299,7 +299,7 @@ def check_enrollment_id(args):
             enrollments_json_content = json.loads(enrollments_string_content)
         else:
             root_logger.info(
-                'Unable to find enrollments.json file. Try to run setup.')
+                'Unable to find enrollments.json file. Please run \'setup\'')
             exit(-1)
 
     enrollmentResult = {}
@@ -399,8 +399,9 @@ def setup(args, invoker='default'):
                         enrollmentOutput.append(enrollmentInfo)
 
         else:
-            root_logger.info('Unable to find enrollments')
+            root_logger.info('Invalid API Response: Unable to get enrollments for contract')
             pass
+            #TODO: output this response, but it might be empty and not json
             #root_logger.debug(json.dumps(enrollments_response.json(), indent=4))
             # Cannot exit here as there might be other contracts which might have enrollments
 
@@ -662,7 +663,7 @@ def post_verification(args,cps_object, session, change_status_response_json, all
 
 def get_status(session, cps_object, enrollmentId, cn):
     # first you have to get the enrollment
-    root_logger.info('\n Getting enrollment for ' + cn +
+    root_logger.info('\nGetting enrollment for ' + cn +
                      ' with enrollment-id: ' + str(enrollmentId))
 
     enrollment_details = cps_object.get_enrollment(session, enrollmentId)
@@ -671,24 +672,24 @@ def get_status(session, cps_object, enrollmentId, cn):
         #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
         if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
             root_logger.info(
-                ' The certificate is active, there are no current pending changes.')
+                'The certificate is active, there are no current pending changes.')
             exit(0)
         elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
             #root_logger.debug(json.dumps(enrollment_details_json, indent=4))
             changeId = int(
                 enrollment_details_json['pendingChanges'][0].split('/')[-1])
             root_logger.info(
-                ' Getting change status for changeId: ' + str(changeId))
+                'Getting change status for changeId: ' + str(changeId))
             # second you have to get the pending change array, and then call get change status with the change id
             change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
             root_logger.debug(json.dumps(change_status_response.json(), indent=4))
             return change_status_response
         else:
             root_logger.info(
-                ' Unable to determine change status.')
+                'Unknown Error: Unable to determine if any pending changes.  Please try again or contact an Akamai representative.')
             exit(-1)
     else:
-        root_logger.info(' Unable to get enrollment details')
+        root_logger.info('Invalid API Response: Unable to get enrollment details.  Please try again contact an Akamai representative.')
         exit(-1)
 
 
@@ -714,36 +715,31 @@ def status(args):
     validation_type = str(enrollment_details.json()['validationType'])
     change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
-    #DEBUG
-    root_logger.debug(json.dumps(change_status_response.json(), indent=4))
-
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
+        root_logger.info(json.dumps(change_status_response.json(), indent=4))
         if change_status_response_json['statusInfo']['state'] == 'error':
             if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
                 errorcode = change_status_response_json['statusInfo']['error']['code']
                 errordesc =  change_status_response_json['statusInfo']['error']['description']
-                root_logger.info('\n Error Code = ' + errorcode)
-                root_logger.info(' Error Description = ' + errordesc)
+                root_logger.info('\nCurrent State = error')
+                root_logger.info('Error Code = ' + errorcode)
+                root_logger.info('Error Description = ' + errordesc)
             root_logger.info(
-                '\n ERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
+                '\nERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
         elif change_status_response_json['statusInfo']['state'] != 'running':
             status = change_status_response_json['statusInfo']['status']
             # if there is something in allowedInput, there is something to do
             for allowed_inputdata in change_status_response_json['allowedInput']:
                 changeType = allowed_inputdata['type']
-                # TODO: probably don't need this line later
-                #root_logger.info('\nChange Type Found: ' + changeType)
                 if changeType == 'lets-encrypt-challenges':
                     lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
                 elif changeType == 'third-party-certificate':
                     #print(change_status_response_json)
                     third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
                 elif changeType == 'change-management':
-                    #print(change_status_response_json)
                     change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
                                         validation_type)
-
                 elif changeType == 'post-verification-warnings-acknowledgement':
                     changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
                                                             allowed_inputdata)
@@ -752,22 +748,21 @@ def status(args):
                         '\n Unsupported Change Type at this time: ' + changeType)
                     exit(0)
         else:
-            # have a change status object, but no allowed input data, we have to try again later?
+            # not sure how to handle these steps yet, state is not error or running
             #DEBUG
             #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-            root_logger.info('\n Current State = ' + change_status_response_json['statusInfo']['state'])
+            root_logger.info('\nCurrent State = ' + change_status_response_json['statusInfo']['state'])
             if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
                 chstatus = change_status_response_json['statusInfo']['status']
                 chdesc =  change_status_response_json['statusInfo']['description']
-                #root_logger.info('\nChange Status Information:')
-                root_logger.info('\n Current Status = ' + chstatus)
-                root_logger.info(' Description = ' + chdesc)
+                root_logger.info('Current Status = ' + chstatus)
+                root_logger.info('Description = ' + chdesc)
                 root_logger.info(
-                '\n There are pending changes but next input steps are not ready yet. Please check back later...')
+                '\nThere are pending changes but user input steps are not ready yet or not necessary at this time. Please check back later...')
             exit(0)
     else:
         root_logger.info(
-            'Unable to determine change status.')
+            'Invalid API Response: Unable to determine change status details. Please try again or contact an Akamai representative.')
         exit(-1)
 
 
@@ -857,7 +852,7 @@ def list(args):
             root_logger.info(table)
             root_logger.info('\n** means enrollment has existing pending changes\n')
         else:
-            root_logger.info('Could not list enrollments. Please ensure you have run setup to populate the local enrollments.json file')
+            root_logger.info("Invalid API Response: Could not list enrollments. Please ensure you have run 'setup' to populate the local enrollments.json file")
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName +
                          ' is not found in templates folder. Exiting.\n')
@@ -1015,7 +1010,7 @@ def audit(args):
                     os.remove(output_file)
 
         else:
-            root_logger.info('Unable to find local cache. Run setup again')
+            root_logger.info("Unable to find local cache. Please run 'setup' again")
             exit(0)
 
 
