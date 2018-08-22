@@ -199,8 +199,8 @@ def cli():
     actions["proceed"] = create_sub_command(
         subparsers, "proceed", "Proceed to deploy certificate",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
-         {"name": "cert-file", "help": "Signed certificate"},
-         {"name": "trust-file", "help": "Signed certificate of CA"},
+         {"name": "cert-file", "help": "Signed leaf certificate (Mandatory only in case of third party cert upload)"},
+         {"name": "trust-file", "help": "Signed certificate of CA (Mandatory only in case of third party cert upload)"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
@@ -509,9 +509,15 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             if not args.cert_file:
                 root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
                 exit(-1)
+            if not args.trust_file:
+                root_logger.info('--trust-file is mandatory for thirdParty cartificate type')
+                exit(-1)
+
             try:
                 with open(args.cert_file,'r') as certificare_file_handler:
                     certificate_content = certificare_file_handler.read()
+                with open(args.trust_file,'r') as trust_file_handler:
+                    trust_content = trust_file_handler.read()
             except (FileNotFoundError, Exception) as e:
                 root_logger.info(e)
                 exit(-1)
@@ -519,16 +525,13 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             cert_object = certificate(certificate_content)
             cert_and_trust = {}
             cert_and_trust['certificate'] = certificate_content
-
-            if args.trust_file:
-                with open(args.trust_file,'r') as trust_file_handler:
-                    trust_content = trust_file_handler.read()
-                cert_and_trust['trustChain'] = trust_content
+            cert_and_trust['trustChain'] = trust_content
 
             certificate_content_str = json.dumps(cert_and_trust)
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
             root_logger.info('Uploading Third party cert \n')
+            print(certificate_content_str)
             uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
 
             if uploadResponse.status_code == 200:
@@ -589,12 +592,12 @@ def change_management(args,cps_object, session, change_status_response_json, all
 
         elif args.command == 'proceed':
             #print(json.dumps(changeInfoResponse.json(), indent=4))
-            if changeInfoResponse.json()['validationResult'] is not None:
-                for eachHash in changeInfoResponse.json()['validationResult']['warnings']:
-                    hash_value = eachHash['message']
+            hash_value = ''
+            if changeInfoResponse.json()['validationResultHash'] is not None:
+                hash_value = changeInfoResponse.json()['validationResultHash']
 
             endpoint = allowed_inputdata['update']
-            print(endpoint)
+            #print(endpoint)
             ack_text = """
             {
                 "acknowledgement": "acknowledge",
@@ -602,7 +605,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
             }
             """ % (hash_value)
             headers = get_headers("change-management-info", "update")
-
+            print(ack_text)
             print(' Acknowledging\n')
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_text)
             if post_call_response.status_code == 200:
@@ -720,10 +723,10 @@ def status(args):
             if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
                 errorcode = change_status_response_json['statusInfo']['error']['code']
                 errordesc =  change_status_response_json['statusInfo']['error']['description']
-                root_logger.info('\nError Code = ' + errorcode)
-                root_logger.info('Error Description = ' + errordesc)
+                root_logger.info('\n Error Code = ' + errorcode)
+                root_logger.info(' Error Description = ' + errordesc)
             root_logger.info(
-                '\nERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
+                '\n ERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
         elif change_status_response_json['statusInfo']['state'] != 'running':
             status = change_status_response_json['statusInfo']['status']
             # if there is something in allowedInput, there is something to do
@@ -752,6 +755,7 @@ def status(args):
             # have a change status object, but no allowed input data, we have to try again later?
             #DEBUG
             #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+            root_logger.info('\n Current State = ' + change_status_response_json['statusInfo']['state'])
             if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
                 chstatus = change_status_response_json['statusInfo']['status']
                 chdesc =  change_status_response_json['statusInfo']['description']
