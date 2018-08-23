@@ -370,7 +370,7 @@ def setup(args, invoker='default'):
                 contractId = contractId.split('_')[1]
             contracts_json_content.append(contractId)
     else:
-        root_logger.info('Unable to fetch contracts')
+        root_logger.info('Invalid API Response: Unable to fetch contracts')
         root_logger.info(json.dumps(contractIds.json(), indent=4))
         exit(-1)
 
@@ -542,8 +542,9 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             certificate_content_str = json.dumps(cert_and_trust)
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
-            root_logger.info('Trying to uploading the 3rd party certificate... \n')
-            print(certificate_content_str)
+            root_logger.info('Trying to upload 3rd party certificate information... \n')
+            #DEBUG
+            #print(certificate_content_str)
             uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
 
             if uploadResponse.status_code == 200:
@@ -555,9 +556,9 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
                 root_logger.info('Invalid API Response: Error with uploading certificate\n')
                 root_logger.info(json.dumps(uploadResponse.json(), indent =4))
     else:
-        root_logger.info(json.dumps(change_status_response_json, indent=4))
-        pass
-        #DO NOT exit here, as allowedInput can have multiple values
+        root_logger.info('\nCurrent State = ' + change_status_response_json['statusInfo']['state'])
+        root_logger.info('Current Status = ' + change_status_response_json['statusInfo']['status'])
+        root_logger.info('Description = ' + change_status_response_json['statusInfo']['description'] + '\n')
 
 
 def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
@@ -569,7 +570,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
         #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
         if changeInfoResponse.status_code != 200:
-            root_logger.info(' Unable to fetch Information\n')
+            root_logger.info('Invalid API Response: Unable to fetch change management information\n')
             root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
             exit(-1)
 
@@ -768,8 +769,7 @@ def status(args):
                 root_logger.info('\nCurrent State = ' + chstate)
                 root_logger.info('Current Status = ' + chstatus)
                 root_logger.info('Description = ' + chdesc)
-                root_logger.info(
-                '\nThere are pending changes but user input steps are not ready yet or not necessary at this time. Please check back later...')
+                root_logger.info('\nChanges are in-progress and any user input steps are not required at this time or not ready yet. Please check back later...')
             exit(0)
     else:
         root_logger.info(
@@ -988,13 +988,13 @@ def audit(args):
                             enrollment_json_info['productionDeployment'] = deployment_details.json()
                         else:
                             root_logger.debug(
-                                'Unable to fetch deployment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
+                                'Invalid API Response: Unable to fetch deployment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                         #Populate the final list
                         final_json_array.append(enrollment_json_info)
 
                 else:
                     root_logger.debug(
-                        'Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
+                        'Invalid API Response: Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollment_details.json(), indent=4))
 
@@ -1320,7 +1320,7 @@ def cancel(args):
 
     else:
         root_logger.info(
-            '\nStatus Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+            '\nInvalid API Response: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
         exit(-1)
 
 
@@ -1374,7 +1374,7 @@ def retrieve_enrollment(args):
         print(Data)
     else:
         root_logger.info(
-            'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+            'Invalid API Response: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
         exit(-1)
 
 
@@ -1431,7 +1431,7 @@ def retrieve_deployed(args):
             root_logger.info('Either --info OR --cert is mandatory')
 
     else:
-        root_logger.info('Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
+        root_logger.info('Invalid API Response: Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
 
 
 def confirm_setup(args):
