@@ -426,8 +426,13 @@ def get_headers(category_name, action):
 
 
 def lets_encrypt_challenges(args,cps_object, session, change_status_response_json):
-    root_logger.info('\nLETS ENCRYPT CHALLENGE DETAILS:')
+    if args.command == 'proceed':
+        root_logger.info('\nThere is no \'proceed\' action for Lets Encrypt Challenges.')
+        root_logger.info('Run \'status\' to view either the http or dns tokens to be configured.')
+        root_logger.info('After configured, CPS will process the next steps automatically after some time.\n')
+        exit(0)
     if not args.validation_type:
+        root_logger.info('\nLets Encrypt Certificate Found')
         root_logger.info('\nPlease specify --validation-type http or --validation-type dns for more details\n')
         exit(0)
 
@@ -436,6 +441,7 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
         root_logger.info('Please enter valid values for --validation-type (either http or dns)')
         exit(-1)
 
+    root_logger.info('\nLETS ENCRYPT CHALLENGE DETAILS:')
     info = change_status_response_json['allowedInput'][0]['info']
     #DEBUG: uncomment to see change info call path
     #root_logger.info('\nGetting change info for: ' + info + '\n')
@@ -490,6 +496,11 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                 root_logger.info('DNS Query: dig TXT _acme-challenge.<domain')
                 root_logger.info('Expected Result: _acme-challenge.<domain> 7200 IN TXT <response body>\n')
 
+
+    root_logger.info('\nCPS STATUS:')
+    root_logger.info('Current State = ' + change_status_response_json['statusInfo']['state'])
+    root_logger.info('Current Status = ' + change_status_response_json['statusInfo']['status'])
+    root_logger.info('Description = ' + change_status_response_json['statusInfo']['description'] + '\n')
 
 def third_party_challenges(args,cps_object, session, change_status_response_json, allowed_inputdata):
     status = change_status_response_json['statusInfo']['status']
@@ -590,7 +601,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
             print(' Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
             print(' SNI-Only          :   ' + sniOnly)
 
-            root_logger.info("\n Please run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
+            root_logger.info("\nPlease run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
 
         elif args.command == 'proceed':
             #print(json.dumps(changeInfoResponse.json(), indent=4))
@@ -623,20 +634,20 @@ def change_management(args,cps_object, session, change_status_response_json, all
 
 
 def post_verification(args,cps_object, session, change_status_response_json, allowed_inputdata):
-    root_logger.info('\nPOST VERIFICATION DETAILS:')
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-review-cert-warning' or status == 'wait-review-third-party-cert':
         if args.command == 'status':
+            root_logger.info('\nPOST VERIFICATION WARNING DETAILS:')
             endpoint = allowed_inputdata['info']
-            #root_logger.info('\nGetting change info for: ' + endpoint + '\n')
             headers = get_headers("post-verification-warnings", "info")
             changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
 
             if changeInfoResponse.status_code == 200:
-                root_logger.info('\n' + changeInfoResponse.json()['warnings'] + '\n')
+                root_logger.info('\n' + changeInfoResponse.json()['warnings'])
+                root_logger.info("\nPlease run 'proceed --cn <common_name>' to acknowledge warnings or run 'cancel --cn <common_name>' to reject change\n")
             else:
                 print(json.dumps(changeInfoResponse.json(), indent=4))
-                root_logger.info(' Unable to fetch details')
+                root_logger.info('Invalid API Response: Unable to get post verification details. Please try again or contact an Akamai representative.')
                 exit(-1)
         elif args.command == 'proceed':
             endpoint = allowed_inputdata['update']
@@ -646,17 +657,17 @@ def post_verification(args,cps_object, session, change_status_response_json, all
             }
             """
             headers = get_headers("post-verification-warnings", "update")
-            print('Acknowledging the warnings\n')
+            print('Acknowledging the post-verification warnings...\n')
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
-                root_logger.info('Successfully Acknowledged\n')
+                root_logger.info('Successfully Acknowledged!\n')
                 root_logger.debug(post_call_response.json())
             else:
-                root_logger.info('There was a problem in acknowledgement\n')
+                root_logger.info('Invalid API Response Code: There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
                 root_logger.info(json.dumps(post_call_response.json(), indent=4))
                 exit(-1)
     else:
-        root_logger.info('Unknown Status for Post Verification\n')
+        root_logger.info('Unknown Error: Unknown Status for Post Verification\n')
         exit(-1)
 
 
@@ -716,7 +727,9 @@ def status(args):
 
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
-        root_logger.info(json.dumps(change_status_response.json(), indent=4))
+        # DEBUG
+        #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+        # if error state, nothing user can do, probably have to cancel and start over
         if change_status_response_json['statusInfo']['state'] == 'error':
             if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
                 errorcode = change_status_response_json['statusInfo']['error']['code']
@@ -726,34 +739,34 @@ def status(args):
                 root_logger.info('Error Description = ' + errordesc)
             root_logger.info(
                 '\nERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
-        elif change_status_response_json['statusInfo']['state'] != 'running':
-            status = change_status_response_json['statusInfo']['status']
-            # if there is something in allowedInput, there is something to do
-            for allowed_inputdata in change_status_response_json['allowedInput']:
-                changeType = allowed_inputdata['type']
-                if changeType == 'lets-encrypt-challenges':
-                    lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
-                elif changeType == 'third-party-certificate':
-                    #print(change_status_response_json)
-                    third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
-                elif changeType == 'change-management':
-                    change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
-                                        validation_type)
-                elif changeType == 'post-verification-warnings-acknowledgement':
-                    changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
-                                                            allowed_inputdata)
-                else:
-                    root_logger.info(
-                        '\n Unsupported Change Type at this time: ' + changeType)
-                    exit(0)
+        # if there is something in allowedInput, there is something to do, process only the first one (one at a time)
+        elif len(change_status_response_json['allowedInput']) > 0:
+            allowed_inputdata = change_status_response_json['allowedInput'][0]
+            changeType = allowed_inputdata['type']
+            if changeType == 'lets-encrypt-challenges':
+                lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
+            elif changeType == 'third-party-certificate':
+                #print(change_status_response_json)
+                third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
+            elif changeType == 'change-management':
+                change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
+                                    validation_type)
+            elif changeType == 'post-verification-warnings-acknowledgement':
+                changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
+                                                        allowed_inputdata)
+            else:
+                root_logger.info(
+                    '\n Unsupported Change Type at this time: ' + changeType)
+                exit(0)
+        # else not sure how to handle these steps yet, just output basic info            
         else:
-            # not sure how to handle these steps yet, state is not error or running
             #DEBUG
             #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-            root_logger.info('\nCurrent State = ' + change_status_response_json['statusInfo']['state'])
             if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
+                chstate = change_status_response_json['statusInfo']['state']
                 chstatus = change_status_response_json['statusInfo']['status']
                 chdesc =  change_status_response_json['statusInfo']['description']
+                root_logger.info('\nCurrent State = ' + chstate)
                 root_logger.info('Current Status = ' + chstatus)
                 root_logger.info('Description = ' + chdesc)
                 root_logger.info(
