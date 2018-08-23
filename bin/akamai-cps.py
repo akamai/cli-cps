@@ -506,7 +506,7 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-upload-third-party':
         if args.command == 'status':
-            root_logger.info('\n 3RD PARTY CERTIFICATE DETAILS:')
+            root_logger.info('\n3RD PARTY CERTIFICATE DETAILS:')
             info_endpoint = allowed_inputdata['info']
             #DEBUG: uncomment to see change info call path
             #root_logger.info('\nGetting change info for: ' + info + '\n')
@@ -514,11 +514,10 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
 
 
-            root_logger.info(' Below is the CSR. Please get it signed by your desired certificate authority\n')
+            root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority\n')
             print(str(changeInfoResponse.json()['csr']) + '\n')
             #TODO: Should we add a --file argument to output this to a file?
         elif args.command == 'proceed':
-            root_logger.info(' Validating the certificate\n')
             if not args.cert_file:
                 root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
                 exit(-1)
@@ -543,17 +542,17 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             certificate_content_str = json.dumps(cert_and_trust)
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
-            root_logger.info('Uploading Third party cert \n')
+            root_logger.info('Trying to uploading the 3rd party certificate... \n')
             print(certificate_content_str)
             uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
 
             if uploadResponse.status_code == 200:
                 #write to file
-                root_logger.info(' Successfully uploaded the certificate\n')
-                root_logger.info(' Check the Status using status command for further steps and current progress\n')
+                root_logger.info('Successfully uploaded the certificate!\n')
+                root_logger.info('Please run \'status\' for current progress and next steps.\n')
                 root_logger.debug(json.dumps(uploadResponse.json(), indent =4))
             else:
-                root_logger.info(' Error in uploading or uploaded certificate\n')
+                root_logger.info('Invalid API Response: Error with uploading certificate\n')
                 root_logger.info(json.dumps(uploadResponse.json(), indent =4))
     else:
         root_logger.info(json.dumps(change_status_response_json, indent=4))
