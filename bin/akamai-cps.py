@@ -660,7 +660,8 @@ def post_verification(args,cps_object, session, change_status_response_json, all
             print('Acknowledging the post-verification warnings...\n')
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
-                root_logger.info('Successfully Acknowledged!\n')
+                root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
+                root_logger.info('\n You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
                 root_logger.info('Invalid API Response Code: There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
@@ -769,7 +770,7 @@ def status(args):
                 root_logger.info('\nCurrent State = ' + chstate)
                 root_logger.info('Current Status = ' + chstatus)
                 root_logger.info('Description = ' + chdesc)
-                root_logger.info('\nChanges are in-progress and any user input steps are not required at this time or not ready yet. Please check back later...')
+                root_logger.info('\nChanges are in-progress and any user input steps are not required at this time or not ready yet. Please check back later...\n')
             exit(0)
     else:
         root_logger.info(
