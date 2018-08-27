@@ -359,7 +359,7 @@ def setup(args, invoker='default'):
     #Fetch the available contracts
     if invoker == 'default':
         root_logger.info('Trying to get contract details' +
-                    ' from [cps] section of ~/.edgerc file')
+                    ' from [' + args.section + '] section of ~/.edgerc file')
     contractIds = cps_object.get_contracts(session)
 
     if contractIds.status_code == 200:
@@ -744,51 +744,35 @@ def status(args):
         # if there is something in allowedInput, there is something to do, process only the first one (one at a time)
         elif len(change_status_response_json['allowedInput']) > 0:
             #Variable to keep track of requiredToProceed
+            selectedIndex = 0
+            counter = 0
             decision_to_loop = False
             for allowed_inputdata in change_status_response_json['allowedInput']:
                 if allowed_inputdata['requiredToProceed'] is True:
+                    selectedIndex = counter
+                    break
                     decision_to_loop = True
-            if decision_to_loop is True:
-                for allowed_inputdata in change_status_response_json['allowedInput']:
-                    if allowed_inputdata['requiredToProceed'] is True:
-                        changeType = allowed_inputdata['type']
-                        if changeType == 'lets-encrypt-challenges':
-                            lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
-                        elif changeType == 'third-party-certificate':
-                            #print(change_status_response_json)
-                            third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
-                        elif changeType == 'change-management':
-                            change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
-                                                validation_type)
-                        elif changeType == 'post-verification-warnings-acknowledgement':
-                            changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
-                                                                    allowed_inputdata)
-                        else:
-                            root_logger.info(
-                                '\n Unsupported Change Type at this time: ' + changeType)
-                            exit(0)
-                    else:
-                        #requiredToProceed is false
-                        pass
-            else:
-                #We need not loop through allowedInput list
-                allowed_inputdata = change_status_response_json['allowedInput'][0]
-                changeType = allowed_inputdata['type']
-                if changeType == 'lets-encrypt-challenges':
-                    lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
-                elif changeType == 'third-party-certificate':
-                    #print(change_status_response_json)
-                    third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
-                elif changeType == 'change-management':
-                    change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
-                                        validation_type)
-                elif changeType == 'post-verification-warnings-acknowledgement':
-                    changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
-                                                            allowed_inputdata)
                 else:
-                    root_logger.info(
-                        '\n Unsupported Change Type at this time: ' + changeType)
-                    exit(0)
+                    counter += 1
+
+            allowed_inputdata = change_status_response_json['allowedInput'][selectedIndex]
+            changeType = allowed_inputdata['type']
+            if changeType == 'lets-encrypt-challenges':
+                lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
+            elif changeType == 'third-party-certificate':
+                #print(change_status_response_json)
+                third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
+            elif changeType == 'change-management':
+                change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
+                                    validation_type)
+            elif changeType == 'post-verification-warnings-acknowledgement':
+                changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
+                                                        allowed_inputdata)
+            else:
+                root_logger.info(
+                    '\n Unsupported Change Type at this time: ' + changeType)
+                exit(0)
+
         # else not sure how to handle these steps yet, just output basic info
         else:
             #DEBUG
