@@ -370,7 +370,7 @@ def setup(args, invoker='default'):
                 contractId = contractId.split('_')[1]
             contracts_json_content.append(contractId)
     else:
-        root_logger.info('Invalid API Response: Unable to fetch contracts')
+        root_logger.info('Invalid API Response (' + str(contractIds.status_code) + '): Unable to fetch contracts')
         root_logger.info(json.dumps(contractIds.json(), indent=4))
         exit(-1)
 
@@ -399,7 +399,7 @@ def setup(args, invoker='default'):
                         enrollmentOutput.append(enrollmentInfo)
 
         else:
-            root_logger.info('Invalid API Response: Unable to get enrollments for contract')
+            root_logger.info('Invalid API Response (' + str(enrollments_response.status_code) + '): Unable to get enrollments for contract')
             pass
             #TODO: output this response, but it might be empty and not json
             #root_logger.debug(json.dumps(enrollments_response.json(), indent=4))
@@ -554,7 +554,7 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
                 root_logger.info('Please run \'status\' for current progress and next steps.\n')
                 root_logger.debug(json.dumps(uploadResponse.json(), indent =4))
             else:
-                root_logger.info('Invalid API Response: Error with uploading certificate\n')
+                root_logger.info('Invalid API Response (' + str(uploadResponse.status_code) + '): Error with uploading certificate\n')
                 root_logger.info(json.dumps(uploadResponse.json(), indent =4))
     else:
         root_logger.info('\nCurrent State = ' + change_status_response_json['statusInfo']['state'])
@@ -571,7 +571,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
         #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
         if changeInfoResponse.status_code != 200:
-            root_logger.info('Invalid API Response: Unable to fetch change management information\n')
+            root_logger.info('Invalid API Response (' + str(changeInfoResponse.status_code) + '): Unable to fetch change management information\n')
             root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
             exit(-1)
 
@@ -625,7 +625,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
                 root_logger.info('\n You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
-                root_logger.info('Invalid API Response Code: there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
+                root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
                 root_logger.debug(post_call_response.json())
                 exit(-1)
 
@@ -648,7 +648,7 @@ def post_verification(args,cps_object, session, change_status_response_json, all
                 root_logger.info("\nPlease run 'proceed --cn <common_name>' to acknowledge warnings or run 'cancel --cn <common_name>' to reject change\n")
             else:
                 print(json.dumps(changeInfoResponse.json(), indent=4))
-                root_logger.info('Invalid API Response: Unable to get post verification details. Please try again or contact an Akamai representative.')
+                root_logger.info('Invalid API Response (' + str(changeInfoResponse.status_code) + '): Unable to get post verification details. Please try again or contact an Akamai representative.')
                 exit(-1)
         elif args.command == 'proceed':
             endpoint = allowed_inputdata['update']
@@ -665,7 +665,7 @@ def post_verification(args,cps_object, session, change_status_response_json, all
                 root_logger.info('\n You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
-                root_logger.info('Invalid API Response Code: There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
+                root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
                 root_logger.info(json.dumps(post_call_response.json(), indent=4))
                 exit(-1)
     else:
@@ -701,7 +701,7 @@ def get_status(session, cps_object, enrollmentId, cn):
                 'Unknown Error: Unable to determine if any pending changes.  Please try again or contact an Akamai representative.')
             exit(-1)
     else:
-        root_logger.info('Invalid API Response: Unable to get enrollment details.  Please try again contact an Akamai representative.')
+        root_logger.info('Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to get enrollment details.  Please try again contact an Akamai representative.')
         exit(-1)
 
 
@@ -804,7 +804,7 @@ def status(args):
             exit(0)
     else:
         root_logger.info(
-            'Invalid API Response: Unable to determine change status details. Please try again or contact an Akamai representative.')
+            'Invalid API Response (' + change_status_response.status_code + '): Unable to determine change status details. Please try again or contact an Akamai representative.')
         exit(-1)
 
 
@@ -894,7 +894,7 @@ def list(args):
             root_logger.info(table)
             root_logger.info('\n** means enrollment has existing pending changes\n')
         else:
-            root_logger.info("Invalid API Response: Could not list enrollments. Please ensure you have run 'setup' to populate the local enrollments.json file")
+            root_logger.info('Invalid API Response (' + str(enrollments_response.status_code) + '): Could not list enrollments. Please ensure you have run \'setup\' to populate the local enrollments.json file')
     except FileNotFoundError:
         root_logger.info('\nFilename: ' + fileName +
                          ' is not found in templates folder. Exiting.\n')
@@ -1019,13 +1019,13 @@ def audit(args):
                             enrollment_json_info['productionDeployment'] = deployment_details.json()
                         else:
                             root_logger.debug(
-                                'Invalid API Response: Unable to fetch deployment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
+                                'Invalid API Response (' + str(deployment_details.status_code) + '): Unable to fetch deployment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                         #Populate the final list
                         final_json_array.append(enrollment_json_info)
 
                 else:
                     root_logger.debug(
-                        'Invalid API Response: Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
+                        'Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollment_details.json(), indent=4))
 
@@ -1462,7 +1462,7 @@ def retrieve_deployed(args):
             root_logger.info('Either --info OR --cert is mandatory')
 
     else:
-        root_logger.info('Invalid API Response: Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
+        root_logger.info('Invalid API Response (' + str(deployment_details.status_code) + '): Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
 
 
 def confirm_setup(args):
