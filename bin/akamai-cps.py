@@ -515,7 +515,7 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
 
 
-            root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority\n')
+            root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.\n')
             print(str(changeInfoResponse.json()['csr']) + '\n')
             #TODO: Should we add a --file argument to output this to a file?
         elif args.command == 'proceed':
@@ -579,28 +579,28 @@ def change_management(args,cps_object, session, change_status_response_json, all
         certificate_details = certificate(leaf_cert)
 
         if args.command == 'status':
-            root_logger.info('\n STATUS: Waiting for someone to acknowledge change management (please review details below)')
+            root_logger.info('\nSTATUS: Waiting for someone to acknowledge change management (please review details below)')
             #DEBUG
             #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
-            root_logger.info('\n CERTIFICATE INFORMATION:')
-            print(' Validation Type   :   ' + validation_type)
-            print(' Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
-            print(' Common Name (CN)  :   ' + certificate_details.subject)
-            print(' SAN Domains       :   ' + str(certificate_details.sanList))
-            print(' Not Before        :   ' + str(certificate_details.not_valid_before))
-            print(' Not After         :   ' + str(certificate_details.expiration))
+            root_logger.info('\nCERTIFICATE INFORMATION:')
+            print('Validation Type   :   ' + validation_type)
+            print('Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
+            print('Common Name (CN)  :   ' + certificate_details.subject)
+            print('SAN Domains       :   ' + str(certificate_details.sanList))
+            print('Not Before        :   ' + str(certificate_details.not_valid_before))
+            print('Not After         :   ' + str(certificate_details.expiration))
 
             sniOnly = 'Off'
             if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni'] is not None:
                 sniOnly = 'On'
-            root_logger.info('\n DEPLOYMENT INFORMATION:')
+            root_logger.info('\nDEPLOYMENT INFORMATION:')
             networkType = 'Enhanced TLS (Excludes China & Russia)'
             if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType'] is not None:
                 networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
-            print(' Network Type      :   ' + networkType)
-            print(' Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
-            print(' Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
-            print(' SNI-Only          :   ' + sniOnly)
+            print('Network Type      :   ' + networkType)
+            print('Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
+            print('Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
+            print('SNI-Only          :   ' + sniOnly)
 
             root_logger.info("\nPlease run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
 
@@ -622,7 +622,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
                 root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
-                root_logger.info('\n You may run \'status\' to see when the acknowledgement has gone through.\n')
+                root_logger.info('You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
                 root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
@@ -662,7 +662,7 @@ def post_verification(args,cps_object, session, change_status_response_json, all
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
                 root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
-                root_logger.info('\n You may run \'status\' to see when the acknowledgement has gone through.\n')
+                root_logger.info('\nYou may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
                 root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
@@ -707,7 +707,7 @@ def get_status(session, cps_object, enrollmentId, cn):
 
 def status(args):
     if not args.cn and not args.enrollment_id:
-        root_logger.info(' common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
@@ -770,7 +770,7 @@ def status(args):
                                                         allowed_inputdata)
             else:
                 root_logger.info(
-                    '\n Unsupported Change Type at this time: ' + changeType)
+                    '\nUnsupported Change Type at this time: ' + changeType)
                 exit(0)
 
         # else not sure how to handle these steps yet, just output basic info
