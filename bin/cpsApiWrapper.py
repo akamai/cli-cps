@@ -13,6 +13,7 @@
 import json
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+import datetime
 
 class cps(object):
     def __init__(self, access_hostname):
@@ -290,3 +291,9 @@ class certificate(object):
 
         for attribute in self.cert.issuer:
             self.issuer = attribute.value
+
+
+#Below class returns the current time
+class logTime(object):
+    def __init__(self):
+        self.time = '[' + '{:%H:%M:%S}'.format(datetime.datetime.now()) + ']'
