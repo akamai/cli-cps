@@ -288,26 +288,39 @@ def create_sub_command(
     return action
 
 
-def check_enrollment_id(args):
+
+def check_enrollment_id(args): 
+    """
+    Utility function that returns a sample enrollment object for later processing
+
+    Parameters
+    -----------
+    args : <string>
+        Should be called with --cn or --enrollment-id arguments
+
+    Returns
+    -------
+    enrollmentResult : local object that stores if enrollment was found and enrollmentId
+    """
     enrollmentsPath = os.path.join('setup')
     for root, dirs, files in os.walk(enrollmentsPath):
         local_enrollments_file = 'enrollments.json'
         if local_enrollments_file in files:
             with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
                 enrollments_string_content = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
             enrollments_json_content = json.loads(enrollments_string_content)
         else:
             root_logger.info(
                 'Unable to find enrollments.json file. Please run \'setup\'')
             exit(-1)
 
+    # initialize a dummy object for return
     enrollmentResult = {}
     enrollmentResult['found'] = False
     enrollmentResult['enrollmentId'] = 0000
-    # enrollmentId argument was NOT passed to program
+    # enrollment-id argument was NOT passed and trying to find enrollment-id by cn (common name)
     if not args.enrollment_id:
-        # Check for multiple/duplicate CN presence
+        # Check if duplicate CNs exists
         enrollmentCount = 0
         for every_enrollment_info in enrollments_json_content:
             if every_enrollment_info['cn'] == args.cn or 'sans' in every_enrollment_info and args.cn in every_enrollment_info['sans']:
@@ -326,11 +339,11 @@ def check_enrollment_id(args):
                     enrollmentResult['cn'] = every_enrollment_info['cn']
                     enrollmentResult['found'] = True
                     break
-    # enrollmentId argument was passed to program
+    # check by enrollment-id argument
     else:
         for every_enrollment_info in enrollments_json_content:
             if str(every_enrollment_info['enrollmentId']) == str(args.enrollment_id):
-                # enrollmentId is passed as argument
+                # enrollment-id is passed as argument
                 enrollmentResult['enrollmentId'] = args.enrollment_id
                 enrollmentResult['cn'] = every_enrollment_info['cn']
                 enrollmentResult['found'] = True
@@ -340,8 +353,22 @@ def check_enrollment_id(args):
 
 
 def setup(args, invoker='default'):
-    #root_logger.info('Setting up required files.... please wait')
-    #root_logger.info('\nDetermining the contracts available.')
+    """
+    Should be run one-time initially in order to create a local enrollment.json file that can serve as local cache for
+    enrollment-id and common name (CN) look ups
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    invoker: <string>
+        Description if called from another method
+
+    Returns
+    -------
+    None
+    """
+
     # Create the wrapper object to make calls
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
@@ -350,20 +377,21 @@ def setup(args, invoker='default'):
     contracts_file_present = False
     contracts_json_content = []
     enrollmentsPath = os.path.join('setup')
-    # Delete the groups folder before we start
+
+    # Delete the enrollments.json file before we start
     if os.path.exists(os.path.join(enrollmentsPath,'enrollments.json')):
         os.remove(os.path.join(enrollmentsPath,'enrollments.json'))
     if not os.path.exists(enrollmentsPath):
         os.makedirs(enrollmentsPath)
 
-    #Fetch the available contracts
+    # invoker == default is first time user runs setup vs. running setup after another action had been completed
     if invoker == 'default':
         root_logger.info('Trying to get contract details' +
                     ' from [' + args.section + '] section of ~/.edgerc file')
+    # Fetch the available contracts. 
     contractIds = cps_object.get_contracts(session)
 
     if contractIds.status_code == 200:
-        #root_logger.info(json.dumps(contractIds.json(), indent=4))
         contracts = contractIds.json()
         for contractId in contracts:
             if contractId.startswith('ctr_'):
@@ -374,6 +402,7 @@ def setup(args, invoker='default'):
         root_logger.info(json.dumps(contractIds.json(), indent=4))
         exit(-1)
 
+    # Looping through each contract to get enrollments for each contract
     for contractId in contracts_json_content:
         if invoker == 'default':
             root_logger.info(
@@ -382,16 +411,15 @@ def setup(args, invoker='default'):
             session, contractId)
         if enrollments_response.status_code == 200:
             enrollments_json = enrollments_response.json()
-            # Find number of groups using len function
             totalEnrollments = len(enrollments_json['enrollments'])
             if invoker == 'default':
                 root_logger.info(str(totalEnrollments) +
                                  ' total enrollments found.')
+            # create a local enrollments json object that contains each valid enrollment for each contract
             if (totalEnrollments > 0):
                 for every_enrollment in enrollments_json['enrollments']:
                     enrollmentInfo = {}
                     if 'csr' in every_enrollment:
-                        #print(json.dumps(every_enrollment, indent = 4))
                         enrollmentInfo['cn'] = every_enrollment['csr']['cn']
                         enrollmentInfo['contractId'] = contractId
                         enrollmentInfo['enrollmentId'] = int(
@@ -401,20 +429,35 @@ def setup(args, invoker='default'):
         else:
             root_logger.info('Invalid API Response (' + str(enrollments_response.status_code) + '): Unable to get enrollments for contract')
             pass
-            #TODO: output this response, but it might be empty and not json
-            #root_logger.debug(json.dumps(enrollments_response.json(), indent=4))
-            # Cannot exit here as there might be other contracts which might have enrollments
+            # Cannot exit here as there might be other contracts to loop through which might have enrollments
 
+    # Write the created enrollments json object to the file
     with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
         enrollmentsFile.write(
             json.dumps(enrollmentOutput, indent=4))
 
+    # If this was a first time setup, output where the enrollment.json file is located
     if invoker == 'default':
         root_logger.info('\nEnrollments details are stored in ' + '"' +
                          os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
 
 
 def get_headers(category_name, action):
+    """
+    Returns a JSON object that has the appropriate headers required by the CPS API for specific calls.
+    https://developer.akamai.com/api/core_features/certificate_provisioning_system/v2.html
+
+    Parameters
+    -----------
+    category_name : <string>
+        Input type of CPS API call that will be made
+    action: <string>
+        info or update based on CPS change type mapping API type
+
+    Returns
+    -------
+    Local json object from headers.json with the appropriate request headers to include
+    """
     try:
         with open('headers.json') as headers_file:
             headers_content = headers_file.read()
@@ -788,7 +831,6 @@ def status(args):
         root_logger.info(logTime().time +
             ' Invalid API Response (' + change_status_response.status_code + '): Unable to determine change status details. Please try again or contact an Akamai representative.')
         exit(-1)
-
 
 def proceed(args):
     #Call status to re-use code
@@ -1442,6 +1484,8 @@ def retrieve_deployed(args):
             print('Issuer       :   ' + str(certificate_details.issuer))
             if hasattr(certificate_details, 'sanList'):
                 print('SANs         :   ' + str(certificate_details.sanList) + '\n')
+            else:
+                print('SANs         :   \n')
         else:
             root_logger.info('Either --info OR --cert is mandatory')
 
