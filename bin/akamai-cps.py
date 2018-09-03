@@ -415,7 +415,7 @@ def setup(args, invoker='default'):
             if invoker == 'default':
                 root_logger.info(str(totalEnrollments) +
                                  ' total enrollments found.')
-            # create a local enrollments json object that contains each valid enrollment for each contract
+            # create a local enrollments json object that contains key info for each enrollment
             if (totalEnrollments > 0):
                 for every_enrollment in enrollments_json['enrollments']:
                     enrollmentInfo = {}
@@ -469,29 +469,48 @@ def get_headers(category_name, action):
 
 
 def lets_encrypt_challenges(args,cps_object, session, change_status_response_json):
+    """
+    Helper method for handling Lets Encrypt status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <object>
+        JSON response from main CPS API get change status call for selected enrollment
+    Returns
+    -------
+    None
+    """    
+    # If proceed action
     if args.command == 'proceed':
-        root_logger.info('\n' + logTime().time + 'There is no \'proceed\' action for Lets Encrypt Challenges.')
+        root_logger.info('\n' + logTime().time + 'There is no manual \'proceed\' action for Lets Encrypt Challenges.')
         root_logger.info( logTime().time + ' Run \'status\' to view either the http or dns tokens to be configured.')
         root_logger.info(logTime().time + ' After configured, CPS will process the next steps automatically after some time.\n')
         exit(0)
+    # Else must be status action
     if not args.validation_type:
         root_logger.info('\nLets Encrypt Certificate Found')
         root_logger.info('\nPlease specify --validation-type http or --validation-type dns for more details\n')
         exit(0)
 
+    # Require user to specify http or dns tokens to output for user validation setup
     validation_type = args.validation_type
     if args.validation_type.upper() != 'http'.upper() and args.validation_type.upper() != 'dns'.upper():
         root_logger.info('Please enter valid values for --validation-type (either http or dns)')
         exit(-1)
 
+    # Display the Lets Encrypt details
     root_logger.info('\nLETS ENCRYPT CHALLENGE DETAILS:')
     info = change_status_response_json['allowedInput'][0]['info']
-    #DEBUG: uncomment to see change info call path
-    #root_logger.info('\nGetting change info for: ' + info + '\n')
     dvChangeInfoResponse = cps_object.get_dv_change_info(
         session, info)
-    #DEBUG: print out change info response
-    #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
+
+    # Display HTTP Tokens
     if validation_type.upper() == 'http'.upper():
         if dvChangeInfoResponse.status_code == 200:
             dvChangeInfoResponseJson = dvChangeInfoResponse.json()
@@ -502,7 +521,6 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                     ['Domain', 'Status', 'Token','Expiration'])
                 table.align = "l"
                 for everyDv in dvChangeInfoResponseJson['dv']:
-                    #root_logger.info(json.dumps(everyDv, indent =4))
                     rowData = []
                     for everyChallenge in everyDv['challenges']:
                         if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
@@ -516,6 +534,7 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                 root_logger.info('\nHTTP VALIDATION INFO:')
                 root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
                 root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')
+    # Else Display DNS Tokens
     elif validation_type.upper() == 'dns'.upper():
         if dvChangeInfoResponse.status_code == 200:
             dvChangeInfoResponseJson = dvChangeInfoResponse.json()
@@ -540,6 +559,7 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                 root_logger.info('Expected Result: _acme-challenge.<domain> 7200 IN TXT <response body>\n')
 
 
+    # Display generic state/status/description CPS information for help for verifying status
     root_logger.info('\nCPS STATUS:')
     root_logger.info('Current State = ' + change_status_response_json['statusInfo']['state'])
     root_logger.info('Current Status = ' + change_status_response_json['statusInfo']['status'])
@@ -629,7 +649,10 @@ def change_management(args,cps_object, session, change_status_response_json, all
             print('Validation Type   :   ' + validation_type)
             print('Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
             print('Common Name (CN)  :   ' + certificate_details.subject)
-            print('SAN Domains       :   ' + str(certificate_details.sanList))
+            if hasattr(certificate_details, 'sanList'):
+                print('SAN Domains       :   ' + str(certificate_details.sanList))
+            else:
+                print('SAN Domains       :   \n')            
             print('Not Before        :   ' + str(certificate_details.not_valid_before))
             print('Not After         :   ' + str(certificate_details.expiration))
 
@@ -813,6 +836,7 @@ def status(args):
                 root_logger.info(
                     '\n' + logTime().time + 'Unsupported Change Type at this time: ' + changeType)
                 exit(0)
+            root_logger.info('If you just submitted a recent change update (such as an acknowledgement) and do not see it reflected yet, please note it may take some time for the status to update.\n')
 
         # else not sure how to handle these steps yet, just output basic info
         else:
@@ -1339,8 +1363,8 @@ def cancel(args):
             if not args.force:
                 root_logger.info('You are about to cancel the pending change for CN: ' +
                                  cn + ' with enrollment-id: ' + str(enrollmentId) + '.\n' +
-                                 'If the certificate has never been active, this will also remove the enrollment.' +
-                                 ' \nDo you wish to continue? (Y/N)')
+                                 '\nIf the certificate has never been active, this will also remove the enrollment.' +
+                                 ' \nIf this a third-party and there is a pending CSR, it will also be cancelled.\n\nDo you wish to continue? (Y/N)')
                 decision = input()
             else:
                 decision = 'y'
