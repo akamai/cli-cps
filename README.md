@@ -133,14 +133,16 @@ Generate an audit of all enrollments to a .xlsx, .csv, or .json file
 %  akamai-cps audit
 %  akamai-cps audit --json
 %  akamai-cps audit --csv
+%  akamai-cps audit --xslx
 %  akamai-cps audit --output-file sample.xlsx
 ```
 
 Here are the flags of interest:
 
 ```
---csv                       csv format (optional: if not specificed, default is .xslx)
---json                      json format (optional: if not specificed, default is .xslx)  
+--csv                       csv format (optional: if not specificed, default is .csv)
+--json                      json format (optional: if not specificed, default is .csv)
+--xlsx                      xslx format (optional: if not specificed, default is .csv) 
 --output-file <value>       Filename to be saved (optional: if not specifed, generated file will be put in audit folder). 
 ```
 
