@@ -288,8 +288,7 @@ def create_sub_command(
     return action
 
 
-
-def check_enrollment_id(args): 
+def check_enrollment_id(args):
     """
     Utility function that returns a sample enrollment object for later processing
 
@@ -388,7 +387,7 @@ def setup(args, invoker='default'):
     if invoker == 'default':
         root_logger.info('Trying to get contract details' +
                     ' from [' + args.section + '] section of ~/.edgerc file')
-    # Fetch the available contracts. 
+    # Fetch the available contracts.
     contractIds = cps_object.get_contracts(session)
 
     if contractIds.status_code == 200:
@@ -485,7 +484,7 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
     Returns
     -------
     None
-    """    
+    """
     # If proceed action
     if args.command == 'proceed':
         root_logger.info('\n' + logTime().time + 'There is no manual \'proceed\' action for Lets Encrypt Challenges.')
@@ -567,6 +566,25 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
 
 
 def third_party_challenges(args,cps_object, session, change_status_response_json, allowed_inputdata):
+    """
+    Helper method for handling Third party status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <json_object>
+        JSON response from main CPS API get change status call for selected enrollment
+    allowed_inputdata : <json_object>
+        The selected allowedInput snippet from change_status_response_json
+    Returns
+    -------
+    None
+    """
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-upload-third-party':
         if args.command == 'status':
@@ -626,6 +644,27 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
 
 
 def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
+    """
+    Helper method for handling Change Management status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <json_object>
+        JSON response from main CPS API get change status call for selected enrollment
+    allowed_inputdata : <json_object>
+        The selected allowedInput snippet from change_status_response_json
+    validation_type : <string>
+        String contaning the value of validation type
+    Returns
+    -------
+    None
+    """
     #print(json.dumps(change_status_response_json, indent=4))
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-ack-change-management':
@@ -652,7 +691,7 @@ def change_management(args,cps_object, session, change_status_response_json, all
             if hasattr(certificate_details, 'sanList'):
                 print('SAN Domains       :   ' + str(certificate_details.sanList))
             else:
-                print('SAN Domains       :   \n')            
+                print('SAN Domains       :   \n')
             print('Not Before        :   ' + str(certificate_details.not_valid_before))
             print('Not After         :   ' + str(certificate_details.expiration))
 
@@ -701,6 +740,25 @@ def change_management(args,cps_object, session, change_status_response_json, all
 
 
 def post_verification(args,cps_object, session, change_status_response_json, allowed_inputdata):
+    """
+    Helper method for handling Post Verification of status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <json_object>
+        JSON response from main CPS API get change status call for selected enrollment
+    allowed_inputdata : <json_object>
+        The selected allowedInput snippet from change_status_response_json
+    Returns
+    -------
+    None
+    """
     status = change_status_response_json['statusInfo']['status']
     if status == 'wait-review-cert-warning' or status == 'wait-review-third-party-cert':
         if args.command == 'status':
@@ -740,6 +798,24 @@ def post_verification(args,cps_object, session, change_status_response_json, all
 
 
 def get_status(session, cps_object, enrollmentId, cn):
+    """
+    Helper method for handling Change Management status or proceed actions
+
+    Parameters
+    -----------
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    enrollmentId : <int>
+        Enrollment Id of certificate/Enrollment
+    cn : <String>
+        Common name of Enrollment
+    Returns
+    -------
+    change_status_response : <Object>
+        JSON object containing change or current status information
+    """
     # first you have to get the enrollment
     root_logger.info('\n' + logTime().time + ' Getting enrollment for ' + cn +
                      ' with enrollment-id: ' + str(enrollmentId))
@@ -770,6 +846,18 @@ def get_status(session, cps_object, enrollmentId, cn):
 
 
 def status(args):
+    """
+    Method for handling  status action. This method handles the displays the current
+    status of enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if not args.cn and not args.enrollment_id:
         root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
@@ -830,7 +918,7 @@ def status(args):
                 change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
                                     validation_type)
             elif changeType == 'post-verification-warnings-acknowledgement':
-                changeInfoResponse = post_verification(args, cps_object, session, change_status_response_json, \
+                post_verification(args, cps_object, session, change_status_response_json, \
                                                         allowed_inputdata)
             else:
                 root_logger.info(
@@ -857,11 +945,34 @@ def status(args):
         exit(-1)
 
 def proceed(args):
+    """
+    Method for handling proceed action. This method is responsible to proceed with further
+    steps of CPS for a specific enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     #Call status to re-use code
     status(args)
 
 
 def list(args):
+    """
+    Method for handling list action. This method is responsible to list/display all enrollments.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
     contract_id_set = set()
@@ -950,6 +1061,18 @@ def list(args):
 
 
 def audit(args):
+    """
+    Method for handling audit action. This method generates an audit report of the account or
+    all enrollments. The default output format is csv, and it is configurable to xlsx or json
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if args.output_file:
         output_file = args.output_file
     else:
@@ -1106,6 +1229,17 @@ def audit(args):
 
 
 def create(args):
+    """
+    Method for handling create action. This method is responsible to create a new enrollment/certificate.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     force = args.force
     fileName = args.file
     filePath = os.path.join(fileName)
@@ -1205,6 +1339,17 @@ def create(args):
 
 
 def update(args):
+    """
+    Method for handling update action. This method is responsible to update a specific enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     force = args.force
     fileName = args.file
     if not args.cn and not args.enrollment_id:
@@ -1334,6 +1479,17 @@ def update(args):
 
 
 def cancel(args):
+    """
+    Method for handling cancel action. This method is responsible to cancel a specific enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if not args.cn and not args.enrollment_id:
         root_logger.info(
             'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
@@ -1405,6 +1561,18 @@ def cancel(args):
 
 
 def retrieve_enrollment(args):
+    """
+    Method for handling retrieve-enrollment action. This method is responsible to retrieve details of an
+    enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if args.json:
         format = 'json'
     elif args.yaml:
@@ -1459,6 +1627,18 @@ def retrieve_enrollment(args):
 
 
 def retrieve_deployed(args):
+    """
+    Method for handling retrieve-deployed action. This method is responsible to retrieve details of an
+    deployed certificate.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
 
     if not args.cn and not args.enrollment_id:
         root_logger.info(
