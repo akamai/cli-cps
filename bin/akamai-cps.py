@@ -586,20 +586,20 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
     None
     """
     status = change_status_response_json['statusInfo']['status']
+    # if csr is ready
     if status == 'wait-upload-third-party':
         if args.command == 'status':
             root_logger.info('\n3RD PARTY CERTIFICATE DETAILS:')
             info_endpoint = allowed_inputdata['info']
-            #DEBUG: uncomment to see change info call path
-            #root_logger.info('\nGetting change info for: ' + info + '\n')
+            root_logger.debug('\nGetting change info for: ' + info + '\n')
             headers = get_headers('third-party-csr', action='info')
             changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
 
 
             root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.\n')
             print(str(changeInfoResponse.json()['csr']) + '\n')
-            #TODO: Should we add a --file argument to output this to a file?
         elif args.command == 'proceed':
+            # for now --cert-file and --trust-file arguments are mandatory
             if not args.cert_file:
                 root_logger.info(logTime().time + ' --cert-file is mandatory for thirdParty cartificate type')
                 exit(-1)
@@ -625,12 +625,10 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
             root_logger.info(logTime().time + ' Trying to upload 3rd party certificate information... \n')
-            #DEBUG
-            #print(certificate_content_str)
+            root_logger.debug("3rd Party POST Upload CSR Body: " + certificate_content_str)
             uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
 
             if uploadResponse.status_code == 200:
-                #write to file
                 root_logger.info(logTime().time + ' Successfully uploaded the certificate!\n')
                 root_logger.info(logTime().time + ' Please run \'status\' for current progress and next steps.\n')
                 root_logger.debug(json.dumps(uploadResponse.json(), indent =4))
@@ -638,6 +636,7 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
                 root_logger.info(logTime().time + ' Invalid API Response (' + str(uploadResponse.status_code) + '): Error with uploading certificate\n')
                 root_logger.info(json.dumps(uploadResponse.json(), indent =4))
     else:
+        #3rd Party certificate type, but no action to be taken. Just output basic info.
         root_logger.info('\n' + logTime().time + ' Current State = ' + change_status_response_json['statusInfo']['state'])
         root_logger.info(logTime().time + ' Current Status = ' + change_status_response_json['statusInfo']['status'])
         root_logger.info(logTime().time + ' Description = ' + change_status_response_json['statusInfo']['description'] + '\n')
@@ -665,25 +664,26 @@ def change_management(args,cps_object, session, change_status_response_json, all
     -------
     None
     """
-    #print(json.dumps(change_status_response_json, indent=4))
     status = change_status_response_json['statusInfo']['status']
+    # certificate is waiting user input to move forward
     if status == 'wait-ack-change-management':
         endpoint = allowed_inputdata['info']
         headers = get_headers("change-management-info", "info")
         changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
-        #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
         if changeInfoResponse.status_code != 200:
             root_logger.info('Invalid API Response (' + str(changeInfoResponse.status_code) + '): Unable to fetch change management information\n')
             root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
             exit(-1)
 
-        leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
-        certificate_details = certificate(leaf_cert)
 
+        # show status details
         if args.command == 'status':
             root_logger.info('\nSTATUS: Waiting for someone to acknowledge change management (please review details below)')
-            #DEBUG
-            #root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
+            # Get the certificate details from the pending change info state and create a certificate object
+            leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
+            certificate_details = certificate(leaf_cert)
+
+            # Display relevant information about the change
             root_logger.info('\nCERTIFICATE INFORMATION:')
             print('Validation Type   :   ' + validation_type)
             print('Certificate Type  :   ' + str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType']))
@@ -710,12 +710,13 @@ def change_management(args,cps_object, session, change_status_response_json, all
             root_logger.info("\nPlease run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change\n")
 
         elif args.command == 'proceed':
-            #print(json.dumps(changeInfoResponse.json(), indent=4))
+            # Get the hash value from the validationResultHash field necessary to acknowledge the change
             hash_value = ''
             if changeInfoResponse.json()['validationResultHash'] is not None:
                 hash_value = changeInfoResponse.json()['validationResultHash']
 
             endpoint = allowed_inputdata['update']
+            # Create the POST acknowledgement body necessary for the request
             ack_body = """
             {
                 "acknowledgement": "acknowledge",
@@ -731,9 +732,8 @@ def change_management(args,cps_object, session, change_status_response_json, all
                 root_logger.debug(post_call_response.json())
             else:
                 root_logger.info(logTime().time + ' Invalid API Response Code (' + str(post_call_response.status_code) + '): there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
-                root_logger.debug(post_call_response.json())
+                root_logger.info(json.dumps(post_call_response.json(), indent=4))
                 exit(-1)
-
     else:
         root_logger.info(logTime().time + ' Unknown Status for Change Management: ' + status)
         exit()
@@ -760,8 +760,10 @@ def post_verification(args,cps_object, session, change_status_response_json, all
     None
     """
     status = change_status_response_json['statusInfo']['status']
+    # status where we have verification warnings
     if status == 'wait-review-cert-warning' or status == 'wait-review-third-party-cert':
         if args.command == 'status':
+            # Display the verification warnings
             root_logger.info('\nPOST VERIFICATION WARNING DETAILS:')
             endpoint = allowed_inputdata['info']
             headers = get_headers("post-verification-warnings", "info")
@@ -771,11 +773,12 @@ def post_verification(args,cps_object, session, change_status_response_json, all
                 root_logger.info('\n' + changeInfoResponse.json()['warnings'])
                 root_logger.info("\nPlease run 'proceed --cn <common_name>' to acknowledge warnings or run 'cancel --cn <common_name>' to reject change\n")
             else:
-                print(json.dumps(changeInfoResponse.json(), indent=4))
                 root_logger.info('Invalid API Response (' + str(changeInfoResponse.status_code) + '): Unable to get post verification details. Please try again or contact an Akamai representative.')
+                print(json.dumps(changeInfoResponse.json(), indent=4))
                 exit(-1)
         elif args.command == 'proceed':
             endpoint = allowed_inputdata['update']
+            # Create the acknowledgement body, in this case is fixed text
             ack_body = """
             {
                 "acknowledgement": "acknowledge"
@@ -793,13 +796,14 @@ def post_verification(args,cps_object, session, change_status_response_json, all
                 root_logger.info(json.dumps(post_call_response.json(), indent=4))
                 exit(-1)
     else:
+        # Not sure how we would get here, shouldn't happen?
         root_logger.info(logTime().time + ' Unknown Error: Unknown Status for Post Verification\n')
         exit(-1)
 
 
 def get_status(session, cps_object, enrollmentId, cn):
     """
-    Helper method for handling Change Management status or proceed actions
+    Helper method to check if pending changes exist for a certificate or not
 
     Parameters
     -----------
@@ -816,19 +820,19 @@ def get_status(session, cps_object, enrollmentId, cn):
     change_status_response : <Object>
         JSON object containing change or current status information
     """
-    # first you have to get the enrollment
+    # first, get the enrollment
     root_logger.info('\n' + logTime().time + ' Getting enrollment for ' + cn +
                      ' with enrollment-id: ' + str(enrollmentId))
 
     enrollment_details = cps_object.get_enrollment(session, enrollmentId)
     if enrollment_details.status_code == 200:
         enrollment_details_json = enrollment_details.json()
-        #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
+        root_logger.debug(json.dumps(enrollment_details_json, indent=4))
         if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
             root_logger.info(logTime().time + ' The certificate is active, there are no current pending changes.')
             exit(0)
+        # if there is a pendingChanges object in the response, there is something to do
         elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
-            #root_logger.debug(json.dumps(enrollment_details_json, indent=4))
             changeId = int(
                 enrollment_details_json['pendingChanges'][0].split('/')[-1])
             root_logger.info(logTime().time + ' Getting change status for changeId: ' + str(changeId))
@@ -847,13 +851,12 @@ def get_status(session, cps_object, enrollmentId, cn):
 
 def status(args):
     """
-    Method for handling  status action. This method handles the displays the current
-    status of enrollment.
+    Main status action for reviewing current status of a certificate.
 
     Parameters
     -----------
     args : <string>
-        Default args parameter (usually no argument specified)
+        Default args parameter (usually --cn or --enrollment-id of relevant certificate)
     Returns
     -------
     None
@@ -866,6 +869,7 @@ def status(args):
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
 
+    # check local setup file to find enrollmentId necessary for CPS API calls
     enrollmentResult = check_enrollment_id(args)
     if enrollmentResult['found'] is True:
         enrollmentId = enrollmentResult['enrollmentId']
@@ -877,12 +881,12 @@ def status(args):
 
     enrollment_details = cps_object.get_enrollment(session, enrollmentId)
     validation_type = str(enrollment_details.json()['validationType'])
+    # Get the actual change status information
     change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
     if change_status_response.status_code == 200:
         change_status_response_json = change_status_response.json()
-        # DEBUG
-        #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+        root_logger.debug(json.dumps(change_status_response.json(), indent=4))
         # if error state, nothing user can do, probably have to cancel and start over
         if change_status_response_json['statusInfo']['state'] == 'error':
             if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
@@ -893,7 +897,8 @@ def status(args):
                 root_logger.info(logTime().time + ' Error Description = ' + errordesc)
             root_logger.info(
                 '\n' + logTime().time + 'ERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
-        # if there is something in allowedInput, there is something to do, process only the first one (one at a time)
+        # if there is something in allowedInput, there is something to do
+        # it is possible for multiple to exist, so process the first one where requiredToProceed is true
         elif len(change_status_response_json['allowedInput']) > 0:
             #Variable to keep track of requiredToProceed
             selectedIndex = 0
@@ -907,19 +912,19 @@ def status(args):
                 else:
                     counter += 1
 
-            allowed_inputdata = change_status_response_json['allowedInput'][selectedIndex]
-            changeType = allowed_inputdata['type']
+            sel_inputdata = change_status_response_json['allowedInput'][selectedIndex]
+            changeType = sel_inputdata['type']
+            # take different action based on the selected change input data
             if changeType == 'lets-encrypt-challenges':
                 lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
             elif changeType == 'third-party-certificate':
-                #print(change_status_response_json)
-                third_party_challenges(args, cps_object, session, change_status_response_json, allowed_inputdata)
+                third_party_challenges(args, cps_object, session, change_status_response_json, sel_inputdata)
             elif changeType == 'change-management':
-                change_management(args, cps_object, session, change_status_response_json, allowed_inputdata, \
+                change_management(args, cps_object, session, change_status_response_json, sel_inputdata, \
                                     validation_type)
             elif changeType == 'post-verification-warnings-acknowledgement':
                 post_verification(args, cps_object, session, change_status_response_json, \
-                                                        allowed_inputdata)
+                                                        sel_inputdata)
             else:
                 root_logger.info(
                     '\n' + logTime().time + 'Unsupported Change Type at this time: ' + changeType)
@@ -928,8 +933,6 @@ def status(args):
 
         # else not sure how to handle these steps yet, just output basic info
         else:
-            #DEBUG
-            #root_logger.info(json.dumps(change_status_response.json(), indent=4))
             if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
                 chstate = change_status_response_json['statusInfo']['state']
                 chstatus = change_status_response_json['statusInfo']['status']
@@ -946,8 +949,7 @@ def status(args):
 
 def proceed(args):
     """
-    Method for handling proceed action. This method is responsible to proceed with further
-    steps of CPS for a specific enrollment.
+    Main proceed action to acknowledge or provide user input to move forward with the certificate.
 
     Parameters
     -----------
@@ -957,7 +959,7 @@ def proceed(args):
     -------
     None
     """
-    #Call status to re-use code
+    #Call existing status method
     status(args)
 
 
@@ -977,10 +979,10 @@ def list(args):
     cps_object = cps(base_url)
     contract_id_set = set()
     try:
-        #Iterate all contracts
+        # Iterate through all contracts
         enrollments_response = cps_object.list_enrollments(session)
         if enrollments_response.status_code == 200:
-            #Initialize the table
+            # Initialize the table
             table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
                                  'Certificate Type', '*In-Progress*', 'Test on Staging First', ])
             if args.show_expiration:
@@ -998,7 +1000,6 @@ def list(args):
                 if 'csr' in every_enrollment:
                     count = count + 1
                     rowData = []
-                    #print(json.dumps(every_enrollment, indent = 4))
                     cn = every_enrollment['csr']['cn']
                     if args.show_expiration:
                         root_logger.info('Processing ' + str(count) + ' of ' + str(
@@ -1011,20 +1012,18 @@ def list(args):
                     else:
                         pass
                     enrollmentId = every_enrollment['location'].split('/')[-1]
-                    # Checking pending changes to add star mark
+                    # Add asterisks if pending change exists for that certificate
                     if 'pendingChanges' in every_enrollment:
                         if len(every_enrollment['pendingChanges']) > 0:
                             rowData.append('*' + str(enrollmentId) + '*')
                         else:
                             rowData.append(enrollmentId)
-                    # rowData.append(enrollmentId
                     rowData.append(cn)
                     certificateType = every_enrollment['validationType']
                     if certificateType != 'third-party':
                         certificateType = every_enrollment['validationType'] + \
                             ' ' + every_enrollment['certificateType']
                     rowData.append(certificateType)
-                    # rowData.append(every_enrollment['certificateType'])
                     if 'pendingChanges' in every_enrollment:
                         if len(every_enrollment['pendingChanges']) > 0:
                             rowData.append('*Yes*')
@@ -1037,8 +1036,7 @@ def list(args):
                             rowData.append('No')
 
                 if args.show_expiration:
-                    #enrollment_details_json = enrollment_details.json()
-                    # print(json.dumps(enrollment_details.json(),indent=4))
+                    # if showing expiriation date, need to get it from the certificate itself
                     certResponse = cps_object.get_certificate(
                         session, enrollmentId)
                     expiration = ''
@@ -1408,48 +1406,6 @@ def update(args):
                                  ' \nPress (Y/N) to continue')
                 decision = input()
 
-        # compare the data
-        '''if args.cn:
-            root_logger.info('Fetching details of ' + cn +
-                            ' with enrollment-id: ' + str(enrollmentId))
-        else:
-            root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
-        enrollment_details = cps_object.get_enrollment(
-            session, enrollmentId)'''
-
-        # Commenting the enrollment fetch call to compare
-        '''if enrollment_details.status_code == 200:
-            enrollment_details_json = enrollment_details.json()
-            #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-            #root_logger.info(diff(jsonFormattedContent, enrollment_details_json))
-            listOfPatches = jsonpatch.JsonPatch.from_diff(enrollment_details_json,jsonFormattedContent)
-            table = PrettyTable(['Op', 'Path', 'Value'])
-            table.align ="l"
-            for everyPatch in listOfPatches:
-                #root_logger.info(everyPatch)
-                rowData = []
-                action = everyPatch['op']
-                rowData.append(action)
-                attribute = everyPatch['path']
-                #attribute = attribute.replace('/','-->')
-                #attribute = attribute.replace('-->','',1)
-                rowData.append(attribute)
-                if 'value' in everyPatch:
-                    attributeValue = everyPatch['value']
-                else:
-                    attributeValue = ''
-                rowData.append(attributeValue)
-                if action != 'move':
-                    if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
-                    and 'location' not in attribute:
-                        table.add_row(rowData)
-                #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
-            root_logger.info('\nFollowing are the differences \n')
-            root_logger.info(table
-
-        else:
-            root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
-            exit(1)'''
     # User passed --force so just go ahead by selecting Y
     else:
         # This is --force mode, so hardcode decision to y
