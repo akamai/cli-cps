@@ -291,9 +291,3 @@ class certificate(object):
 
         for attribute in self.cert.issuer:
             self.issuer = attribute.value
-
-
-#Below class returns the current time
-class logTime(object):
-    def __init__(self):
-        self.time = '[' + '{:%H:%M:%S}'.format(datetime.datetime.now()) + ']'
