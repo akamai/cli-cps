@@ -485,8 +485,8 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
     # If proceed action
     if args.command == 'proceed':
         root_logger.info('\n' + 'There is no manual \'proceed\' action for Lets Encrypt Challenges.')
-        root_logger.info(' Run \'status\' to view either the http or dns tokens to be configured.')
-        root_logger.info(' After configured, CPS will process the next steps automatically after some time.\n')
+        root_logger.info('Run \'status\' to view either the http or dns tokens to be configured.')
+        root_logger.info('After configured, CPS will process the next steps automatically after some time.\n')
         exit(0)
     # Else must be status action
     if not args.validation_type:
@@ -598,10 +598,10 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
         elif args.command == 'proceed':
             # for now --cert-file and --trust-file arguments are mandatory
             if not args.cert_file:
-                root_logger.info(' --cert-file is mandatory for thirdParty cartificate type')
+                root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
                 exit(-1)
             if not args.trust_file:
-                root_logger.info(' --trust-file is mandatory for thirdParty cartificate type')
+                root_logger.info('--trust-file is mandatory for thirdParty cartificate type')
                 exit(-1)
 
             try:
@@ -621,22 +621,22 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             certificate_content_str = json.dumps(cert_and_trust)
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
-            root_logger.info(' Trying to upload 3rd party certificate information... \n')
+            root_logger.info('Trying to upload 3rd party certificate information... \n')
             root_logger.debug("3rd Party POST Upload CSR Body: " + certificate_content_str)
             uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
 
             if uploadResponse.status_code == 200:
-                root_logger.info(' Successfully uploaded the certificate!\n')
-                root_logger.info(' Please run \'status\' for current progress and next steps.\n')
+                root_logger.info('Successfully uploaded the certificate!\n')
+                root_logger.info('Please run \'status\' for current progress and next steps.\n')
                 root_logger.debug(json.dumps(uploadResponse.json(), indent =4))
             else:
-                root_logger.info(' Invalid API Response (' + str(uploadResponse.status_code) + '): Error with uploading certificate\n')
+                root_logger.info('Invalid API Response (' + str(uploadResponse.status_code) + '): Error with uploading certificate\n')
                 root_logger.info(json.dumps(uploadResponse.json(), indent =4))
     else:
         #3rd Party certificate type, but no action to be taken. Just output basic info.
-        root_logger.info('\n' + ' Current State = ' + change_status_response_json['statusInfo']['state'])
-        root_logger.info(' Current Status = ' + change_status_response_json['statusInfo']['status'])
-        root_logger.info(' Description = ' + change_status_response_json['statusInfo']['description'] + '\n')
+        root_logger.info('\n' + 'Current State = ' + change_status_response_json['statusInfo']['state'])
+        root_logger.info('Current Status = ' + change_status_response_json['statusInfo']['status'])
+        root_logger.info('Description = ' + change_status_response_json['statusInfo']['description'] + '\n')
 
 
 def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
@@ -725,18 +725,18 @@ def change_management(args,cps_object, session, change_status_response_json, all
             }
             """ % (hash_value)
             headers = get_headers("change-management-info", "update")
-            print(' Trying to acknowledge change...')
+            root_logger.info('\nTrying to acknowledge change...')
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
-                root_logger.info(' Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
-                root_logger.info(' You may run \'status\' to see when the acknowledgement has gone through.\n')
+                root_logger.info('\nSuccessfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
+                root_logger.info('You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
-                root_logger.info(' Invalid API Response Code (' + str(post_call_response.status_code) + '): there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
+                root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
                 root_logger.info(json.dumps(post_call_response.json(), indent=4))
                 exit(-1)
     else:
-        root_logger.info(' Unknown Status for Change Management: ' + status)
+        root_logger.info('Unknown Status for Change Management: ' + status)
         exit()
 
 
@@ -786,19 +786,19 @@ def post_verification(args,cps_object, session, change_status_response_json, all
             }
             """
             headers = get_headers("post-verification-warnings", "update")
-            print(' Acknowledging the post-verification warnings...\n')
+            root_logger.info('Acknowledging the post-verification warnings...\n')
             post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
             if post_call_response.status_code == 200:
-                root_logger.info(' Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
-                root_logger.info('\n' + ' You may run \'status\' to see when the acknowledgement has gone through.\n')
+                root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient. \n')
+                root_logger.info('\n' + 'You may run \'status\' to see when the acknowledgement has gone through.\n')
                 root_logger.debug(post_call_response.json())
             else:
-                root_logger.info(' Invalid API Response Code (' + str(post_call_response.status_code) + '): There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
+                root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
                 root_logger.info(json.dumps(post_call_response.json(), indent=4))
                 exit(-1)
     else:
         # Not sure how we would get here, shouldn't happen?
-        root_logger.info(' Unknown Error: Unknown Status for Post Verification\n')
+        root_logger.info('Unknown Error: Unknown Status for Post Verification\n')
         exit(-1)
 
 
@@ -822,7 +822,7 @@ def get_status(session, cps_object, enrollmentId, cn):
         JSON object containing change or current status information
     """
     # first, get the enrollment
-    root_logger.info('\n' +' Getting enrollment for ' + cn +
+    root_logger.info('\n' +'Getting enrollment for ' + cn +
                      ' with enrollment-id: ' + str(enrollmentId))
 
     enrollment_details = cps_object.get_enrollment(session, enrollmentId)
@@ -830,22 +830,22 @@ def get_status(session, cps_object, enrollmentId, cn):
         enrollment_details_json = enrollment_details.json()
         root_logger.debug(json.dumps(enrollment_details_json, indent=4))
         if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-            root_logger.info(' The certificate is active, there are no current pending changes.')
+            root_logger.info('The certificate is active, there are no current pending changes.')
             exit(0)
         # if there is a pendingChanges object in the response, there is something to do
         elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
             changeId = int(
                 enrollment_details_json['pendingChanges'][0].split('/')[-1])
-            root_logger.info(' Getting change status for changeId: ' + str(changeId))
+            root_logger.info('Getting change status for changeId: ' + str(changeId))
             # second you have to get the pending change array, and then call get change status with the change id
             change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
             root_logger.debug(json.dumps(change_status_response.json(), indent=4))
             return change_status_response
         else:
-            root_logger.info(' Unknown Error: Unable to determine if any pending changes.  Please try again or contact an Akamai representative.')
+            root_logger.info('Unknown Error: Unable to determine if any pending changes.  Please try again or contact an Akamai representative.')
             exit(-1)
     else:
-        root_logger.info(' Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to get enrollment details.  Please try again contact an Akamai representative.')
+        root_logger.info('Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to get enrollment details.  Please try again contact an Akamai representative.')
         exit(-1)
 
 
@@ -891,9 +891,9 @@ def status(args):
             if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
                 errorcode = change_status_response_json['statusInfo']['error']['code']
                 errordesc =  change_status_response_json['statusInfo']['error']['description']
-                root_logger.info('\n' + ' Current State = error')
-                root_logger.info(' Error Code = ' + errorcode)
-                root_logger.info(' Error Description = ' + errordesc)
+                root_logger.info('\n' + 'Current State = error')
+                root_logger.info('Error Code = ' + errorcode)
+                root_logger.info('Error Description = ' + errordesc)
             root_logger.info(
                 '\n' + 'ERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
         # if there is something in allowedInput, there is something to do
@@ -935,12 +935,12 @@ def status(args):
                 chstatus = change_status_response_json['statusInfo']['status']
                 chdesc =  change_status_response_json['statusInfo']['description']
                 root_logger.info('\n'+ 'Current State = ' + chstate)
-                root_logger.info(' Current Status = ' + chstatus)
-                root_logger.info(' Description = ' + chdesc)
+                root_logger.info('Current Status = ' + chstatus)
+                root_logger.info('Description = ' + chdesc)
                 root_logger.info('\n' + 'Changes are in-progress and any user input steps are not required at this time or not ready yet. Please check back later...\n')
             exit(0)
     else:
-        root_logger.info(' Invalid API Response (' + change_status_response.status_code + '): Unable to determine change status details. Please try again or contact an Akamai representative.')
+        root_logger.info('Invalid API Response (' + change_status_response.status_code + '): Unable to determine change status details. Please try again or contact an Akamai representative.')
         exit(-1)
 
 
