@@ -53,7 +53,6 @@ root_logger = logging.getLogger()
 
 logfile_handler = logging.FileHandler(log_file, mode='a')
 logfile_handler.setFormatter(log_formatter)
-logfile_handler.terminator = '\n'
 root_logger.addHandler(logfile_handler)
 
 console_handler = logging.StreamHandler()
