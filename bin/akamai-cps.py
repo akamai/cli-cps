@@ -53,6 +53,7 @@ root_logger = logging.getLogger()
 
 logfile_handler = logging.FileHandler(log_file, mode='a')
 logfile_handler.setFormatter(log_formatter)
+logfile_handler.terminator = '\n'
 root_logger.addHandler(logfile_handler)
 
 console_handler = logging.StreamHandler()
@@ -193,7 +194,8 @@ def cli():
         subparsers, "audit", "Generate a report in csv format by default. Can also use --json/xlsx",
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
          {"name": "json", "help": "Output format is json"},
-         {"name": "xlsx", "help": "Output format is xlsx"}])
+         {"name": "xlsx", "help": "Output format is xlsx"},
+         {"name": "csv", "help": "Output format is csv"}])
 
     actions["proceed"] = create_sub_command(
         subparsers, "proceed", "Proceed to deploy certificate",
@@ -1045,7 +1047,7 @@ def list(args):
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
                     rowData.append(expiration)
                 table.add_row(rowData)
-            print(table)
+            root_logger.info(table)
             root_logger.info('\n ** means enrollment has existing pending changes\n')
         else:
             root_logger.info('Invalid API Response (' + str(enrollments_response.status_code) + '): Could not list enrollments. Please ensure you have run \'setup\' to populate the local enrollments.json file')
