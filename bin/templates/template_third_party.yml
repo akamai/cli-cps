@@ -1,0 +1,86 @@
+---
+# #######################################
+# Basic Cert Info (DO NOT MODIFY)
+# #######################################
+validationType: third-party
+ra: third-party
+certificateType: third-party
+thirdParty:
+  excludeSans: false
+# #######################################
+# Akamai Defaults (MODIFY IF NEEDED, OTHERWISE LEAVE AS DEFAULT)
+# #######################################
+enableMultiStackedCertificates: false
+signatureAlgorithm: SHA-256
+networkConfiguration:
+  preferredCiphers: ak-akamai-default-2017q3
+  mustHaveCiphers: ak-akamai-default-2017q3
+  disallowedTlsVersions: []
+  sni:
+  secureNetwork: enhanced-tls
+  geography: core
+# #######################################
+# Customer Edit (PLEASE UPDATE BELOW)
+# (ANY STRING VALUES THAT START WITH 0 SHOULD USE DOUBLE QUOTES: "")
+# #######################################
+# Change Management (true or false)
+changeManagement: false
+# Technical Contact Info
+techContact:
+  firstName: <FILLIN>
+  lastName: <FILLIN>
+  title: <FILLIN>
+  email: <FILLIN>
+  phone: <FILLIN>
+  organizationName: <FILLIN>
+  addressLineOne: <FILLIN>
+  addressLineTwo: <FILLIN>
+  country: <FILLIN>
+  city: <FILLIN>
+  region: <FILLIN>
+  postalCode: <FILLIN>
+# Admin Contact
+adminContact:
+  firstName: <FILLIN>
+  lastName: <FILLIN>
+  title: <FILLIN>
+  email: <FILLIN>
+  phone: <FILLIN>
+  organizationName: <FILLIN>
+  addressLineOne: <FILLIN>
+  addressLineTwo: <FILLIN>
+  country: <FILLIN>
+  city: <FILLIN>
+  region: <FILLIN>
+  postalCode: <FILLIN>
+# Org Info
+org:
+  name: <FILLIN>
+  addressLineTwo: <FILLIN>
+  addressLineOne: <FILLIN>
+  country: <FILLIN>
+  city: <FILLIN>
+  region: <FILLIN>
+  postalCode: <FILLIN>
+  phone: <FILLIN>  
+# CSR Info
+csr:
+  #Common Name (CN)
+  cn: <FILLIN>
+  #Organization
+  o: <FILLIN>
+  #Organization Unit (OU)
+  ou: <FILLIN>
+  #Country
+  c: <FILLIN>
+  #Locality
+  l: <FILLIN>
+  #State Province Name
+  st: <FILLIN>
+  # Specify at list of SAN entries (at least 1 should be specified)
+  # - san entry 1
+  # - san entry 2
+  sans:
+  - <FILLIN>
+  - <FILLIN AS NEEDED>
+# #######################################
