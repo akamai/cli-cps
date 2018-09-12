@@ -459,7 +459,16 @@ def get_headers(category_name, action):
     Local json object from headers.json with the appropriate request headers to include
     """
     try:
-        with open('headers.json') as headers_file:
+        code_repo = os.environ["AKAMAI_CLI_HOME"]
+    except KeyError as e:
+        root_logger.info('%s is not found as environment variable. Please set the same to Akamai CLI installation directory'% str(e))
+        root_logger.info('Default is user\'s Home directory')
+        root_logger.info('Example command for linux/mac: export AKAMAI_CLI_HOME=/Users/<user_name>')
+        exit(-1)
+
+    try:
+        headers_file_location = code_repo + '/.akamai-cli/src/cli-cps/bin/headers.json'
+        with open(headers_file_location, mode='r') as headers_file:
             headers_content = headers_file.read()
         headers_content_json = json.loads(headers_content)
         return headers_content_json['category'][category_name][action]
