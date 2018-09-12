@@ -19,9 +19,7 @@ Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com
 """
 
 import json
-import inspect
 import datetime
-from akamai.edgegrid import EdgeGridAuth
 from cpsApiWrapper import cps
 from cpsApiWrapper import certificate
 import argparse
