@@ -32,7 +32,6 @@ import sys
 import yaml
 from prettytable import PrettyTable
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
-import jsonpatch
 from xlsxwriter.workbook import Workbook
 import csv
 
