@@ -1693,7 +1693,6 @@ def retrieve_deployed(args):
             'Enrollment not found. Please double check common name (CN) or enrollment-id.')
         exit(0)
 
-
     cn = args.cn
 
     #Default it to production network
