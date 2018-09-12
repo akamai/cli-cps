@@ -11,7 +11,9 @@
 """
 
 import json
-
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+import datetime
 
 class cps(object):
     def __init__(self, access_hostname):
@@ -202,7 +204,6 @@ class cps(object):
         get_certificate_response = session.get(get_certificate_url, headers=headers)
         return get_certificate_response
 
-
     def get_dv_change_info(self, session, endpoint):
         """
         Function to Get a Certificate
@@ -225,9 +226,9 @@ class cps(object):
         return dvChangeInfo_response
 
 
-    def custom_post_call(self, session, headers, endpoint):
+    def custom_post_call(self, session, headers, endpoint, data='optional'):
         """
-        Function to Get a Certificate
+        Function to make a post call to a custom endpoint
 
         Parameters
         -----------
@@ -236,10 +237,57 @@ class cps(object):
 
         Returns
         -------
-        customCall_response : customCall_response
-            (customCall_response) Object with all details
+        custom_response : custom_response
+            (custom_response) Object with all details
         """
 
         custom_url = 'https://' + self.access_hostname + endpoint
-        custom_response = session.post(custom_url, headers=headers)
+        if data == 'optional':
+            custom_response = session.post(custom_url, headers=headers)
+        else:
+            custom_response = session.post(custom_url, data=data, headers=headers)
         return custom_response
+
+    def custom_get_call(self, session, headers, endpoint):
+        """
+        Function to make a get call with a custom endpoint
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        get_response : get_response
+            (get_response) Object with all details
+        """
+        custom_url = 'https://' + self.access_hostname + endpoint
+        custom_response = session.get(custom_url, headers=headers)
+        return custom_response
+
+# Below class encapsulates the certificate members, this is done to
+# decode a certificate into its members or fields
+class certificate(object):
+    def __init__(self, certificate):
+        self.cert = x509.load_pem_x509_certificate(certificate.encode(), default_backend())
+
+        self.oids = x509.oid.ExtensionOID()
+        try:
+            self.ext = self.cert.extensions.get_extension_for_oid(self.oids.SUBJECT_ALTERNATIVE_NAME)
+            self.sanList = []
+            self.sanList = str(self.ext.value.get_values_for_type(x509.DNSName)).replace(',',
+                      '').replace('[', '').replace(']', '')
+        except Exception:
+            #Not every certificate will have SAN
+            pass
+
+        self.expiration = str(self.cert.not_valid_after.date()) + ' ' + str(self.cert.not_valid_after.time()) + ' UTC'
+
+        for attribute in self.cert.subject:
+            self.subject = attribute.value
+
+        self.not_valid_before = str(self.cert.not_valid_before.date()) + ' ' + str(self.cert.not_valid_before.time()) + ' UTC'
+
+        for attribute in self.cert.issuer:
+            self.issuer = attribute.value

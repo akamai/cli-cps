@@ -19,8 +19,11 @@ Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com
 """
 
 import json
+import inspect
+import datetime
 from akamai.edgegrid import EdgeGridAuth
 from cpsApiWrapper import cps
+from cpsApiWrapper import certificate
 import argparse
 import configparser
 import requests
@@ -30,10 +33,8 @@ import shutil
 import sys
 import yaml
 from prettytable import PrettyTable
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
-import datetime
+import jsonpatch
 from xlsxwriter.workbook import Workbook
 import csv
 
@@ -46,12 +47,11 @@ if not os.path.exists('logs'):
 log_file = os.path.join('logs', 'cps.log')
 
 # Set the format of logging in console and file separately
-log_formatter = logging.Formatter(
-    "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 console_formatter = logging.Formatter("%(message)s")
 root_logger = logging.getLogger()
 
-logfile_handler = logging.FileHandler(log_file, mode='w')
+logfile_handler = logging.FileHandler(log_file, mode='a')
 logfile_handler.setFormatter(log_formatter)
 root_logger.addHandler(logfile_handler)
 
@@ -190,11 +190,20 @@ def cli():
         None)
 
     actions["audit"] = create_sub_command(
-        subparsers, "audit", "Generate a report in xlsx format by default. Can also use --json/csv",
+        subparsers, "audit", "Generate a report in csv format by default. Can also use --json/xlsx",
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
          {"name": "json", "help": "Output format is json"},
+         {"name": "xlsx", "help": "Output format is xlsx"},
          {"name": "csv", "help": "Output format is csv"}])
 
+    actions["proceed"] = create_sub_command(
+        subparsers, "proceed", "Proceed to deploy certificate",
+        [{"name": "force", "help": "Skip the stdout display and user confirmation"},
+         {"name": "cert-file", "help": "Signed leaf certificate (Mandatory only in case of third party cert upload)"},
+         {"name": "trust-file", "help": "Signed certificate of CA (Mandatory only in case of third party cert upload)"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+        None)
 
     args = parser.parse_args()
 
@@ -237,8 +246,7 @@ def create_sub_command(
             del arg["name"]
             required.add_argument("--" + name,
                                   required=True,
-                                  **arg,
-                                  )
+                                  **arg)
 
     optional = action.add_argument_group("optional arguments")
     if optional_arguments:
@@ -246,7 +254,7 @@ def create_sub_command(
             name = arg["name"]
             del arg["name"]
             if name == 'force' or name == 'show-expiration' or name == 'json' \
-            or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' \
+            or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' or name == 'xlsx' \
             or name == 'chain' or name == 'info':
                 optional.add_argument(
                     "--" + name,
@@ -256,8 +264,7 @@ def create_sub_command(
             else:
                 optional.add_argument("--" + name,
                                       required=False,
-                                      **arg,
-                                      )
+                                      **arg)
 
     optional.add_argument(
         "--edgerc",
@@ -279,14 +286,38 @@ def create_sub_command(
     return action
 
 
+def check_enrollment_id(args):
+    """
+    Utility function that returns a sample enrollment object for later processing
 
-def check_enrollment_id(args, enrollments_json_content):
+    Parameters
+    -----------
+    args : <string>
+        Should be called with --cn or --enrollment-id arguments
+
+    Returns
+    -------
+    enrollmentResult : local object that stores if enrollment was found and enrollmentId
+    """
+    enrollmentsPath = os.path.join('setup')
+    for root, dirs, files in os.walk(enrollmentsPath):
+        local_enrollments_file = 'enrollments.json'
+        if local_enrollments_file in files:
+            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
+                enrollments_string_content = enrollmentsFileHandler.read()
+            enrollments_json_content = json.loads(enrollments_string_content)
+        else:
+            root_logger.info(
+                'Unable to find enrollments.json file. Please run \'setup\'')
+            exit(-1)
+
+    # initialize a dummy object for return
     enrollmentResult = {}
     enrollmentResult['found'] = False
     enrollmentResult['enrollmentId'] = 0000
-    # enrollmentId argument was NOT passed to program
+    # enrollment-id argument was NOT passed and trying to find enrollment-id by cn (common name)
     if not args.enrollment_id:
-        # Check for multiple/duplicate CN presence
+        # Check if duplicate CNs exists
         enrollmentCount = 0
         for every_enrollment_info in enrollments_json_content:
             if every_enrollment_info['cn'] == args.cn or 'sans' in every_enrollment_info and args.cn in every_enrollment_info['sans']:
@@ -295,8 +326,9 @@ def check_enrollment_id(args, enrollments_json_content):
                 pass
         # Error out if multiple CNs are present
         if enrollmentCount > 1:
+            print('')
             root_logger.info(
-                '\nMore than 1 enrollment found for same CN. Please use --enrollment-id as input\n')
+                'More than 1 enrollment found for same CN. Please use --enrollment-id as input')
             exit(0)
         else:
             for every_enrollment_info in enrollments_json_content:
@@ -305,11 +337,11 @@ def check_enrollment_id(args, enrollments_json_content):
                     enrollmentResult['cn'] = every_enrollment_info['cn']
                     enrollmentResult['found'] = True
                     break
-    # enrollmentId argument was passed to program
+    # check by enrollment-id argument
     else:
         for every_enrollment_info in enrollments_json_content:
             if str(every_enrollment_info['enrollmentId']) == str(args.enrollment_id):
-                # enrollmentId is passed as argument
+                # enrollment-id is passed as argument
                 enrollmentResult['enrollmentId'] = args.enrollment_id
                 enrollmentResult['cn'] = every_enrollment_info['cn']
                 enrollmentResult['found'] = True
@@ -319,8 +351,22 @@ def check_enrollment_id(args, enrollments_json_content):
 
 
 def setup(args, invoker='default'):
-    #root_logger.info('Setting up required files.... please wait')
-    #root_logger.info('\nDetermining the contracts available.')
+    """
+    Should be run one-time initially in order to create a local enrollment.json file that can serve as local cache for
+    enrollment-id and common name (CN) look ups
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    invoker: <string>
+        Description if called from another method
+
+    Returns
+    -------
+    None
+    """
+
     # Create the wrapper object to make calls
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
@@ -329,47 +375,50 @@ def setup(args, invoker='default'):
     contracts_file_present = False
     contracts_json_content = []
     enrollmentsPath = os.path.join('setup')
-    # Delete the groups folder before we start
+
+    # Delete the enrollments.json file before we start
     if os.path.exists(os.path.join(enrollmentsPath,'enrollments.json')):
         os.remove(os.path.join(enrollmentsPath,'enrollments.json'))
     if not os.path.exists(enrollmentsPath):
         os.makedirs(enrollmentsPath)
 
-    #Fetch the available contracts
+    # invoker == default is first time user runs setup vs. running setup after another action had been completed
     if invoker == 'default':
         root_logger.info('Trying to get contract details' +
-                    ' from [cps] section of ~/.edgerc file')
+                    ' from [' + args.section + '] section of ~/.edgerc file')
+    # Fetch the available contracts.
     contractIds = cps_object.get_contracts(session)
+
     if contractIds.status_code == 200:
-        #root_logger.info(json.dumps(contractIds.json(), indent=4))
         contracts = contractIds.json()
         for contractId in contracts:
             if contractId.startswith('ctr_'):
                 contractId = contractId.split('_')[1]
             contracts_json_content.append(contractId)
     else:
-        root_logger.info('Unable to fetch contracts')
+        root_logger.info('Invalid API Response (' + str(contractIds.status_code) + '): Unable to fetch contracts')
         root_logger.info(json.dumps(contractIds.json(), indent=4))
         exit(-1)
 
+    # Looping through each contract to get enrollments for each contract
     for contractId in contracts_json_content:
         if invoker == 'default':
+            print('')
             root_logger.info(
-                '\nProcessing Enrollments for contract: ' + contractId)
+                'Processing Enrollments for contract: ' + contractId)
         enrollments_response = cps_object.list_enrollments(
             session, contractId)
         if enrollments_response.status_code == 200:
             enrollments_json = enrollments_response.json()
-            # Find number of groups using len function
             totalEnrollments = len(enrollments_json['enrollments'])
             if invoker == 'default':
                 root_logger.info(str(totalEnrollments) +
                                  ' total enrollments found.')
+            # create a local enrollments json object that contains key info for each enrollment
             if (totalEnrollments > 0):
                 for every_enrollment in enrollments_json['enrollments']:
                     enrollmentInfo = {}
                     if 'csr' in every_enrollment:
-                        #print(json.dumps(every_enrollment, indent = 4))
                         enrollmentInfo['cn'] = every_enrollment['csr']['cn']
                         enrollmentInfo['contractId'] = contractId
                         enrollmentInfo['enrollmentId'] = int(
@@ -377,22 +426,478 @@ def setup(args, invoker='default'):
                         enrollmentOutput.append(enrollmentInfo)
 
         else:
-            root_logger.info(
-                'Unable to find enrollments')
-            # Cannot exit here as there might be other contracts which might
-            # have enrollments
-            # exit(-1)
+            root_logger.info('Invalid API Response (' + str(enrollments_response.status_code) + '): Unable to get enrollments for contract')
+            pass
+            # Cannot exit here as there might be other contracts to loop through which might have enrollments
+
+    # Write the created enrollments json object to the file
     with open(os.path.join(enrollmentsPath, 'enrollments.json'), 'a') as enrollmentsFile:
         enrollmentsFile.write(
             json.dumps(enrollmentOutput, indent=4))
 
+    # If this was a first time setup, output where the enrollment.json file is located
     if invoker == 'default':
-        root_logger.info('\nEnrollments details are stored in ' + '"' +
-                         os.path.join(enrollmentsPath, 'enrollments.json') + '". \nRun \'list\' to see all enrollments.\n')
+        print('')
+        root_logger.info('Enrollments details are stored in ' + '"' +
+                         os.path.join(enrollmentsPath, 'enrollments.json') + '".')
+        print('Run \'list\' to see all enrollments.')
+        print('')
+
+
+def get_headers(category_name, action):
+    """
+    Returns a JSON object that has the appropriate headers required by the CPS API for specific calls.
+    https://developer.akamai.com/api/core_features/certificate_provisioning_system/v2.html
+
+    Parameters
+    -----------
+    category_name : <string>
+        Input type of CPS API call that will be made
+    action: <string>
+        info or update based on CPS change type mapping API type
+
+    Returns
+    -------
+    Local json object from headers.json with the appropriate request headers to include
+    """
+    try:
+        with open('headers.json') as headers_file:
+            headers_content = headers_file.read()
+        headers_content_json = json.loads(headers_content)
+        return headers_content_json['category'][category_name][action]
+    except FileNotFoundError:
+        root_logger.info('headers.json file is not found. Update your CPS pacakage for CLI\n')
+        exit(-1)
+
+
+def lets_encrypt_challenges(args,cps_object, session, change_status_response_json):
+    """
+    Helper method for handling Lets Encrypt status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <object>
+        JSON response from main CPS API get change status call for selected enrollment
+    Returns
+    -------
+    None
+    """
+    # If proceed action
+    if args.command == 'proceed':
+        print('')
+        root_logger.info('There is no manual \'proceed\' action for Lets Encrypt Challenges.')
+        root_logger.info('Run \'status\' to view either the http or dns tokens to be configured.')
+        root_logger.info('After validation steps are configured, CPS will process the next steps automatically after some time.')
+        print('')
+        exit(0)
+    # Else must be status action
+    if not args.validation_type:
+        print('')
+        root_logger.info('Lets Encrypt Certificate Found')
+        print('')
+        root_logger.info('Please specify --validation-type http or --validation-type dns for more details')
+        print('')
+        exit(0)
+
+    # Require user to specify http or dns tokens to output for user validation setup
+    validation_type = args.validation_type
+    if args.validation_type.upper() != 'http'.upper() and args.validation_type.upper() != 'dns'.upper():
+        root_logger.info('Please enter valid values for --validation-type (either http or dns)')
+        exit(-1)
+
+    # Display the Lets Encrypt details
+    print('')
+    print('LETS ENCRYPT CHALLENGE DETAILS:')
+    info = change_status_response_json['allowedInput'][0]['info']
+    dvChangeInfoResponse = cps_object.get_dv_change_info(
+        session, info)
+
+    # Display HTTP Tokens
+    if validation_type.upper() == 'http'.upper():
+        if dvChangeInfoResponse.status_code == 200:
+            dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+            numDomains = len(
+                dvChangeInfoResponseJson['dv'])
+            if numDomains > 0:
+                table = PrettyTable(
+                    ['Domain', 'Status', 'Token','Expiration'])
+                table.align = "l"
+                for everyDv in dvChangeInfoResponseJson['dv']:
+                    rowData = []
+                    for everyChallenge in everyDv['challenges']:
+                        if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
+                            rowData.append(everyDv['domain'])
+                            rowData.append(everyDv['status'])
+                            rowData.append(everyChallenge['token'])
+                            rowData.append(everyDv['expires'])
+                            table.add_row(rowData)
+                root_logger.info(table)
+
+                root_logger.info('\nHTTP VALIDATION INFO:')
+                root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
+                root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')
+    # Else Display DNS Tokens
+    elif validation_type.upper() == 'dns'.upper():
+        if dvChangeInfoResponse.status_code == 200:
+            dvChangeInfoResponseJson = dvChangeInfoResponse.json()
+            numDomains = len(dvChangeInfoResponseJson['dv'])
+            if numDomains > 0:
+                table = PrettyTable(['Domain', 'Status', 'Response Body', 'Expiration'])
+                table.align = "l"
+                for everyDv in dvChangeInfoResponseJson['dv']:
+                    rowData = []
+                    for everyChallenge in everyDv['challenges']:
+                        if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
+                            rowData.append(everyDv['domain'])
+                            rowData.append(everyDv['status'])
+                            rowData.append(everyChallenge['responseBody'])
+                            rowData.append(everyDv['expires'])
+                            table.add_row(rowData)
+                print(table)
+
+                print('')
+                print('DNS VALIDATION INFO:')
+                print('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS response body as follows:\n')
+                print('DNS Query: dig TXT _acme-challenge.<domain')
+                print('Expected Result: _acme-challenge.<domain> 7200 IN TXT <response body>')
+                print('')
+
+
+    # Display generic state/status/description CPS information for help for verifying status
+    print('')
+    root_logger.info('CPS STATUS:')
+    root_logger.info('Current State = ' + change_status_response_json['statusInfo']['state'])
+    root_logger.info('Current Status = ' + change_status_response_json['statusInfo']['status'])
+    root_logger.info('Description = ' + change_status_response_json['statusInfo']['description'])
+    print('')
+
+def third_party_challenges(args,cps_object, session, change_status_response_json, allowed_inputdata):
+    """
+    Helper method for handling Third party status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <json_object>
+        JSON response from main CPS API get change status call for selected enrollment
+    allowed_inputdata : <json_object>
+        The selected allowedInput snippet from change_status_response_json
+    Returns
+    -------
+    None
+    """
+    status = change_status_response_json['statusInfo']['status']
+    # if csr is ready
+    if status == 'wait-upload-third-party':
+        if args.command == 'status':
+            root_logger.info('')
+            root_logger.info('3RD PARTY CERTIFICATE DETAILS:')
+            info_endpoint = allowed_inputdata['info']
+            root_logger.debug('Getting change info for: ' + info_endpoint)
+            headers = get_headers('third-party-csr', action='info')
+            changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
+
+
+            root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.')
+            root_logger.info('')
+            print(str(changeInfoResponse.json()['csr']))
+            root_logger.info('')
+
+        elif args.command == 'proceed':
+            # for now --cert-file and --trust-file arguments are mandatory
+            if not args.cert_file:
+                root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
+                exit(-1)
+            if not args.trust_file:
+                root_logger.info('--trust-file is mandatory for thirdParty cartificate type')
+                exit(-1)
+
+            try:
+                with open(args.cert_file,'r') as certificare_file_handler:
+                    certificate_content = certificare_file_handler.read()
+                with open(args.trust_file,'r') as trust_file_handler:
+                    trust_content = trust_file_handler.read()
+            except (FileNotFoundError, Exception) as e:
+                root_logger.info(e)
+                exit(-1)
+
+            cert_object = certificate(certificate_content)
+            cert_and_trust = {}
+            cert_and_trust['certificate'] = certificate_content
+            cert_and_trust['trustChain'] = trust_content
+
+            certificate_content_str = json.dumps(cert_and_trust)
+            update_endpoint = allowed_inputdata['update']
+            headers = get_headers("third-party-csr", "update")
+            root_logger.info('Trying to upload 3rd party certificate information...')
+            print('')
+            root_logger.debug("3rd Party POST Upload CSR Body: " + certificate_content_str)
+            uploadResponse = cps_object.custom_post_call(session, headers, update_endpoint, data=certificate_content_str)
+
+            if uploadResponse.status_code == 200:
+                root_logger.info('Successfully uploaded the certificate!\n')
+                root_logger.info('Please run \'status\' for current progress and next steps.\n')
+                root_logger.debug(json.dumps(uploadResponse.json(), indent =4))
+            else:
+                root_logger.info('Invalid API Response (' + str(uploadResponse.status_code) + '): Error with uploading certificate\n')
+                root_logger.info(json.dumps(uploadResponse.json(), indent =4))
+    else:
+        #3rd Party certificate type, but no action to be taken. Just output basic info.
+        print('')
+        root_logger.info('Current State = ' + change_status_response_json['statusInfo']['state'])
+        root_logger.info('Current Status = ' + change_status_response_json['statusInfo']['status'])
+        root_logger.info('Description = ' + change_status_response_json['statusInfo']['description'] + '\n')
+
+
+def change_management(args,cps_object, session, change_status_response_json, allowed_inputdata, validation_type):
+    """
+    Helper method for handling Change Management status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <json_object>
+        JSON response from main CPS API get change status call for selected enrollment
+    allowed_inputdata : <json_object>
+        The selected allowedInput snippet from change_status_response_json
+    validation_type : <string>
+        String contaning the value of validation type
+    Returns
+    -------
+    None
+    """
+    status = change_status_response_json['statusInfo']['status']
+    # certificate is waiting user input to move forward
+    if status == 'wait-ack-change-management':
+        endpoint = allowed_inputdata['info']
+        headers = get_headers("change-management-info", "info")
+        changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+        if changeInfoResponse.status_code != 200:
+            root_logger.info('Invalid API Response (' + str(changeInfoResponse.status_code) + '): Unable to fetch change management information\n')
+            root_logger.info(json.dumps(changeInfoResponse.json(), indent=4))
+            exit(-1)
+
+
+        # show status details
+        if args.command == 'status':
+            print('')
+            print('STATUS: Waiting for someone to acknowledge change management (please review details below)')
+            # Get the certificate details from the pending change info state and create a certificate object
+            if changeInfoResponse.json()['pendingState']['pendingCertificate'] is not None:
+                leaf_cert = changeInfoResponse.json()['pendingState']['pendingCertificate']['fullCertificate']
+                certificate_details = certificate(leaf_cert)
+                subject = certificate_details.subject
+                cert_type = str(changeInfoResponse.json()['pendingState']['pendingCertificate']['certificateType'])
+
+            # Display relevant information about the change
+            print('')
+            print('CERTIFICATE INFORMATION:')
+            print('Validation Type   :   ' + validation_type)
+            if changeInfoResponse.json()['pendingState']['pendingCertificate'] is not None:
+                print('Certificate Type  :   ' + cert_type)
+                print('Common Name (CN)  :   ' + subject)
+                if hasattr(certificate_details, 'sanList'):
+                    print('SAN Domains       :   ' + str(certificate_details.sanList))
+                else:
+                    print('SAN Domains       :   \n')
+                print('Not Before        :   ' + str(certificate_details.not_valid_before))
+                print('Not After         :   ' + str(certificate_details.expiration))
+
+            sniOnly = 'Off'
+            if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['sni'] is not None:
+                sniOnly = 'On'
+            print('')
+            print('DEPLOYMENT INFORMATION:')
+            networkType = 'Enhanced TLS (Excludes China & Russia)'
+            if changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType'] is not None:
+                networkType = changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['networkType']
+            print('Network Type      :   ' + networkType)
+            print('Must Have Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['mustHaveCiphers'])
+            print('Preferred Ciphers :   ' + changeInfoResponse.json()['pendingState']['pendingNetworkConfiguration']['preferredCiphers'])
+            print('SNI-Only          :   ' + sniOnly)
+
+            print('')
+            root_logger.info("Please run 'proceed --cn <common_name>' to approve and deploy to production or run 'cancel --cn <common_name>' to reject change")
+            print('')
+
+        elif args.command == 'proceed':
+            # Get the hash value from the validationResultHash field necessary to acknowledge the change
+            hash_value = ''
+            if changeInfoResponse.json()['validationResultHash'] is not None:
+                hash_value = changeInfoResponse.json()['validationResultHash']
+
+            endpoint = allowed_inputdata['update']
+            # Create the POST acknowledgement body necessary for the request
+            ack_body = """
+            {
+                "acknowledgement": "acknowledge",
+                "hash": "%s"
+            }
+            """ % (hash_value)
+            headers = get_headers("change-management-info", "update")
+            root_logger.info('\nTrying to acknowledge change...')
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
+            if post_call_response.status_code == 200:
+                print('')
+                root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient.')
+                print('')
+                root_logger.info('You may run \'status\' to see when the acknowledgement has gone through.')
+                print('')
+                root_logger.debug(post_call_response.json())
+            else:
+                root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): there was a problem in acknowledgement.  Please try again or contact your Akamai representative.\n')
+                root_logger.info(json.dumps(post_call_response.json(), indent=4))
+                exit(-1)
+    else:
+        root_logger.info('Unknown Status for Change Management: ' + status)
+        exit()
+
+
+def post_verification(args,cps_object, session, change_status_response_json, allowed_inputdata):
+    """
+    Helper method for handling Post Verification of status or proceed actions
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually either status or proceed action)
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    change_status_response_json : <json_object>
+        JSON response from main CPS API get change status call for selected enrollment
+    allowed_inputdata : <json_object>
+        The selected allowedInput snippet from change_status_response_json
+    Returns
+    -------
+    None
+    """
+    status = change_status_response_json['statusInfo']['status']
+    # status where we have verification warnings
+    if status == 'wait-review-cert-warning' or status == 'wait-review-third-party-cert':
+        if args.command == 'status':
+            # Display the verification warnings
+            print('')
+            root_logger.info('POST VERIFICATION WARNING DETAILS:')
+            endpoint = allowed_inputdata['info']
+            headers = get_headers("post-verification-warnings", "info")
+            changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint)
+
+            if changeInfoResponse.status_code == 200:
+                print('')
+                root_logger.info(changeInfoResponse.json()['warnings'])
+                print('')
+                root_logger.info("Please run 'proceed --cn <common_name>' to acknowledge warnings or run 'cancel --cn <common_name>' to reject change")
+                print('')
+            else:
+                root_logger.info('Invalid API Response (' + str(changeInfoResponse.status_code) + '): Unable to get post verification details. Please try again or contact an Akamai representative.')
+                print(json.dumps(changeInfoResponse.json(), indent=4))
+                exit(-1)
+        elif args.command == 'proceed':
+            endpoint = allowed_inputdata['update']
+            # Create the acknowledgement body, in this case is fixed text
+            ack_body = """
+            {
+                "acknowledgement": "acknowledge"
+            }
+            """
+            headers = get_headers("post-verification-warnings", "update")
+            root_logger.info('Acknowledging the post-verification warnings...\n')
+            post_call_response = cps_object.custom_post_call(session, headers, endpoint, data=ack_body)
+            if post_call_response.status_code == 200:
+                root_logger.info('Successfully Acknowledged!  However, it may take some time for CPS to reflect this acknowledgement.  Please be patient.')
+                print('\n')
+                root_logger.info('You may run \'status\' to see when the acknowledgement has gone through.')
+                print('')
+                root_logger.debug(post_call_response.json())
+            else:
+                root_logger.info('Invalid API Response Code (' + str(post_call_response.status_code) + '): There was a problem in acknowledgement.  Please try again or contact your Akamai representative\n')
+                root_logger.info(json.dumps(post_call_response.json(), indent=4))
+                exit(-1)
+    else:
+        # Not sure how we would get here, shouldn't happen?
+        root_logger.info('Unknown Error: Unknown Status for Post Verification')
+        print('')
+        exit(-1)
+
+
+def get_status(session, cps_object, enrollmentId, cn):
+    """
+    Helper method to check if pending changes exist for a certificate or not
+
+    Parameters
+    -----------
+    session : <object
+        An Edgegrid Auth (Akamai) object
+    cps_object: <object>
+        Local CPS Object that has relevant http response
+    enrollmentId : <int>
+        Enrollment Id of certificate/Enrollment
+    cn : <String>
+        Common name of Enrollment
+    Returns
+    -------
+    change_status_response : <Object>
+        JSON object containing change or current status information
+    """
+    # first, get the enrollment
+    print('')
+    root_logger.info('Getting enrollment for ' + cn +
+                     ' with enrollment-id: ' + str(enrollmentId))
+
+    enrollment_details = cps_object.get_enrollment(session, enrollmentId)
+    if enrollment_details.status_code == 200:
+        enrollment_details_json = enrollment_details.json()
+        root_logger.debug(json.dumps(enrollment_details_json, indent=4))
+        if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
+            root_logger.info('The certificate is active, there are no current pending changes.')
+            exit(0)
+        # if there is a pendingChanges object in the response, there is something to do
+        elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
+            changeId = int(
+                enrollment_details_json['pendingChanges'][0].split('/')[-1])
+            root_logger.info('Getting change status for changeId: ' + str(changeId))
+            # second you have to get the pending change array, and then call get change status with the change id
+            change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
+            root_logger.debug(json.dumps(change_status_response.json(), indent=4))
+            return change_status_response
+        else:
+            root_logger.info('Unknown Error: Unable to determine if any pending changes.  Please try again or contact an Akamai representative.')
+            exit(-1)
+    else:
+        root_logger.info('Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to get enrollment details.  Please try again contact an Akamai representative.')
+        exit(-1)
 
 
 def status(args):
+    """
+    Main status action for reviewing current status of a certificate.
 
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually --cn or --enrollment-id of relevant certificate)
+    Returns
+    -------
+    None
+    """
     if not args.cn and not args.enrollment_id:
         root_logger.info('common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
@@ -400,165 +905,132 @@ def status(args):
     enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
-            enrollments_json_content = json.loads(enrollments_string_content)
 
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-                exit(0)
+    # check local setup file to find enrollmentId necessary for CPS API calls
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info('Enrollment not found. Please double check common name (CN) or enrollment-id.')
+        exit(0)
 
-            # first you have to get the enrollment
-            root_logger.info('\nGetting enrollment for ' + cn +
-                             ' with enrollment-id: ' + str(enrollmentId))
+    enrollment_details = cps_object.get_enrollment(session, enrollmentId)
+    validation_type = str(enrollment_details.json()['validationType'])
+    # Get the actual change status information
+    change_status_response = get_status(session, cps_object, enrollmentId, cn)
 
-            enrollment_details = cps_object.get_enrollment(
-                session, enrollmentId)
-            if enrollment_details.status_code == 200:
-                enrollment_details_json = enrollment_details.json()
-                #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-                if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-                    root_logger.info(
-                        'The certificate is active, there are no current pending changes.')
-                elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
-                    #root_logger.debug(json.dumps(enrollment_details_json, indent=4))
-                    changeId = int(
-                        enrollment_details_json['pendingChanges'][0].split('/')[-1])
-                    root_logger.info(
-                        'Getting change status for changeId: ' + str(changeId))
-                    # second you have to get the pending change array, and then call get change status with the change id
-                    change_status_response = cps_object.get_change_status(
-                        session, enrollmentId, changeId)
-                    #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-                    if change_status_response.status_code == 200:
-                        change_status_response_json = change_status_response.json()
-                        if len(change_status_response_json['allowedInput']) > 0:
-                            # if there is something in allowedInput, there is something to do
-                            changeType = change_status_response_json['allowedInput'][0]['type']
-                            # root_logger.info('-----------------------------')
-                            root_logger.info(
-                                'Change Type Found: ' + changeType)
-                            if changeType == 'lets-encrypt-challenges':
-                                if not args.validation_type:
-                                    root_logger.info('\n --validation-type is mandatory for DV certificates/enrollments\n')
-                                    exit(0)
-
-                                validation_type = args.validation_type
-                                if args.validation_type.upper() != 'http'.upper() and args.validation_type.upper() != 'dns'.upper():
-                                    root_logger.info('Please enter valid values for --validation-type. (http/dns)')
-                                    exit(-1)
-
-                                info = change_status_response_json['allowedInput'][0]['info']
-                                root_logger.info('\nGetting change info for: ' + info + '\n')
-                                dvChangeInfoResponse = cps_object.get_dv_change_info(
-                                    session, info)
-                                #debug print out change info response
-                                #root_logger.info(json.dumps(dvChangeInfoResponse.json(), indent=4))
-                                if validation_type.upper() == 'http'.upper():
-                                    if dvChangeInfoResponse.status_code == 200:
-                                        dvChangeInfoResponseJson = dvChangeInfoResponse.json()
-                                        numDomains = len(
-                                            dvChangeInfoResponseJson['dv'])
-                                        if numDomains > 0:
-                                            table = PrettyTable(
-                                                ['Domain', 'Status', 'Token','Expiration'])
-                                            table.align = "l"
-                                            for everyDv in dvChangeInfoResponseJson['dv']:
-                                                #root_logger.info(json.dumps(everyDv, indent =4))
-                                                rowData = []
-                                                for everyChallenge in everyDv['challenges']:
-                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'http-01':
-                                                        rowData.append(everyDv['domain'])
-                                                        rowData.append(everyDv['status'])
-                                                        rowData.append(everyChallenge['token'])
-                                                        rowData.append(everyDv['expires'])
-                                                        table.add_row(rowData)
-                                            root_logger.info(table)
-
-                                            root_logger.info('\nHTTP VALIDATION INFO:')
-                                            root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
-                                            root_logger.info('http://<domain>/.well-known/acme-challenge/<token> --> http://dcv.akamai.com/.well-known/acme-challenge/<token>\n')
-                                elif validation_type.upper() == 'dns'.upper():
-                                    if dvChangeInfoResponse.status_code == 200:
-                                        dvChangeInfoResponseJson = dvChangeInfoResponse.json()
-                                        numDomains = len(dvChangeInfoResponseJson['dv'])
-                                        if numDomains > 0:
-                                            table = PrettyTable(['Domain', 'Status', 'Response Body', 'Expiration'])
-                                            table.align = "l"
-                                            for everyDv in dvChangeInfoResponseJson['dv']:
-                                                rowData = []
-                                                for everyChallenge in everyDv['challenges']:
-                                                    if 'type' in everyChallenge and everyChallenge['type'] == 'dns-01':
-                                                        rowData.append(everyDv['domain'])
-                                                        rowData.append(everyDv['status'])
-                                                        rowData.append(everyChallenge['responseBody'])
-                                                        rowData.append(everyDv['expires'])
-                                                        table.add_row(rowData)
-                                            root_logger.info(table)
-
-                                            root_logger.info('\nDNS VALIDATION INFO:')
-                                            root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS response body as follows:\n')
-                                            root_logger.info('DNS Query: dig TXT _acme-challenge.<domain>')
-                                            root_logger.info('Expected Result: _acme-challenge.<domain> 7200 IN TXT <response body>\n')
-                            else:
-                                root_logger.info(
-                                    'Unsupported Change Type at this time: ' + changeType)
-                                exit(0)
-                        else:
-                            # have a change status object, but no allowed input data, try again later?
-                            root_logger.info(
-                                'Found pending changes, but next validation steps are not ready yet. Please check back later...')
-                            if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
-                                chstatus = change_status_response_json['statusInfo']['status']
-                                chdesc =  change_status_response_json['statusInfo']['description']
-                                root_logger.info('\nChange Status Information:')
-                                root_logger.info('Status = ' + chstatus)
-                                root_logger.info('Description = ' + chdesc)
-                            exit(0)
-                    else:
-                        root_logger.info(
-                            'Unable to determine change status.')
-                        exit(-1)
+    if change_status_response.status_code == 200:
+        change_status_response_json = change_status_response.json()
+        root_logger.debug(json.dumps(change_status_response.json(), indent=4))
+        # if error state, nothing user can do, probably have to cancel and start over
+        if change_status_response_json['statusInfo']['state'] == 'error':
+            if 'error' in change_status_response_json['statusInfo'] and len(change_status_response_json['statusInfo']['error']) > 0:
+                errorcode = change_status_response_json['statusInfo']['error']['code']
+                errordesc =  change_status_response_json['statusInfo']['error']['description']
+                print('')
+                root_logger.info('Current State = error')
+                root_logger.info('Error Code = ' + errorcode)
+                root_logger.info('Error Description = ' + errordesc)
+            print('')
+            root_logger.info('ERROR: There is an error and cannot proceed. Please cancel and try again or contact an Akamai representative.')
+        # if there is something in allowedInput, there is something to do
+        # it is possible for multiple to exist, so process the first one where requiredToProceed is true
+        elif len(change_status_response_json['allowedInput']) > 0:
+            #Variable to keep track of requiredToProceed
+            selectedIndex = 0
+            counter = 0
+            for allowed_inputdata in change_status_response_json['allowedInput']:
+                if allowed_inputdata['requiredToProceed'] is True:
+                    selectedIndex = counter
+                    break
                 else:
-                    root_logger.info(
-                        'Unable to determine change status.')
-                    exit(-1)
+                    counter += 1
 
+            sel_inputdata = change_status_response_json['allowedInput'][selectedIndex]
+            changeType = sel_inputdata['type']
+            # take different action based on the selected change input data
+            if changeType == 'lets-encrypt-challenges':
+                lets_encrypt_challenges(args, cps_object, session, change_status_response_json)
+            elif changeType == 'third-party-certificate':
+                third_party_challenges(args, cps_object, session, change_status_response_json, sel_inputdata)
+            elif changeType == 'change-management':
+                change_management(args, cps_object, session, change_status_response_json, sel_inputdata, \
+                                    validation_type)
+            elif changeType == 'post-verification-warnings-acknowledgement':
+                post_verification(args, cps_object, session, change_status_response_json, \
+                                                        sel_inputdata)
             else:
+                print('')
                 root_logger.info(
-                    'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
-                exit(-1)
+                    'Unsupported Change Type at this time: ' + changeType)
+                exit(0)
+            root_logger.info('If you just submitted a recent change update (such as an acknowledgement) and do not see it reflected yet, please note it may take some time for the status to update.\n')
+
+        # else not sure how to handle these steps yet, just output basic info
         else:
-            root_logger.info(
-                'Unable to find enrollments.json file. Try to run -setup.')
-            exit(-1)
+            if 'statusInfo' in change_status_response_json and len(change_status_response_json['statusInfo']) > 0:
+                chstate = change_status_response_json['statusInfo']['state']
+                chstatus = change_status_response_json['statusInfo']['status']
+                chdesc =  change_status_response_json['statusInfo']['description']
+                print('')
+                root_logger.info('Current State = ' + chstate)
+                root_logger.info('Current Status = ' + chstatus)
+                root_logger.info('Description = ' + chdesc)
+                print('')
+                root_logger.info('Changes are in-progress and any user input steps are not required at this time or not ready yet. Please check back later...')
+                print('')
+            exit(0)
+    else:
+        root_logger.info('Invalid API Response (' + change_status_response.status_code + '): Unable to determine change status details. Please try again or contact an Akamai representative.')
+        exit(-1)
+
+
+def proceed(args):
+    """
+    Main proceed action to acknowledge or provide user input to move forward with the certificate.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
+    #Call existing status method
+    status(args)
 
 
 def list(args):
+    """
+    Method for handling list action. This method is responsible to list/display all enrollments.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
     contract_id_set = set()
     try:
-        #Iterate all contracts
+        # Iterate through all contracts
         enrollments_response = cps_object.list_enrollments(session)
         if enrollments_response.status_code == 200:
-            #Initialize the table
+            # Initialize the table
             table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
                                  'Certificate Type', '*In-Progress*', 'Test on Staging First', ])
             if args.show_expiration:
                 table = PrettyTable(['Enrollment ID', 'Common Name (SAN Count)',
                                      'Certificate Type', '*In-Progress*', 'Test on Staging First', 'Expiration'])
+                print('')
                 root_logger.info(
-                    '\nFetching list with production expiration dates. Please wait... \n')
+                    'Fetching list with production expiration dates. Please wait...')
+                print('')
             table.align = "l"
 
             enrollments_json = enrollments_response.json()
@@ -569,7 +1041,6 @@ def list(args):
                 if 'csr' in every_enrollment:
                     count = count + 1
                     rowData = []
-                    #print(json.dumps(every_enrollment, indent = 4))
                     cn = every_enrollment['csr']['cn']
                     if args.show_expiration:
                         root_logger.info('Processing ' + str(count) + ' of ' + str(
@@ -582,20 +1053,18 @@ def list(args):
                     else:
                         pass
                     enrollmentId = every_enrollment['location'].split('/')[-1]
-                    # Checking pending changes to add star mark
+                    # Add asterisks if pending change exists for that certificate
                     if 'pendingChanges' in every_enrollment:
                         if len(every_enrollment['pendingChanges']) > 0:
                             rowData.append('*' + str(enrollmentId) + '*')
                         else:
                             rowData.append(enrollmentId)
-                    # rowData.append(enrollmentId
                     rowData.append(cn)
                     certificateType = every_enrollment['validationType']
                     if certificateType != 'third-party':
                         certificateType = every_enrollment['validationType'] + \
                             ' ' + every_enrollment['certificateType']
                     rowData.append(certificateType)
-                    # rowData.append(every_enrollment['certificateType'])
                     if 'pendingChanges' in every_enrollment:
                         if len(every_enrollment['pendingChanges']) > 0:
                             rowData.append('*Yes*')
@@ -608,31 +1077,45 @@ def list(args):
                             rowData.append('No')
 
                 if args.show_expiration:
-                    #enrollment_details_json = enrollment_details.json()
-                    # print(json.dumps(enrollment_details.json(),indent=4))
+                    # if showing expiriation date, need to get it from the certificate itself
                     certResponse = cps_object.get_certificate(
                         session, enrollmentId)
                     expiration = ''
                     if certResponse.status_code == 200:
-                        cert = x509.load_pem_x509_certificate(
-                            certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
+                        certificate_details = certificate(certResponse.json()['certificate'])
+                        expiration = certificate_details.expiration
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
                     rowData.append(expiration)
                 table.add_row(rowData)
-            root_logger.info(table)
-            root_logger.info('\n** means enrollment has existing pending changes\n')
+            print(table)
+            print('')
+            print('** means enrollment has existing pending changes')
+            print('')
         else:
-            root_logger.info('Could not list enrollments. Please ensure you have run setup to populate the local enrollments.json file')
+            root_logger.info('Invalid API Response (' + str(enrollments_response.status_code) + '): Could not list enrollments. Please ensure you have run \'setup\' to populate the local enrollments.json file')
     except FileNotFoundError:
-        root_logger.info('\nFilename: ' + fileName +
-                         ' is not found in templates folder. Exiting.\n')
+        print('')
+        root_logger.info('Filename: ' + fileName +
+                         ' is not found in templates folder. Exiting...')
+        print('')
         exit(1)
 
 
 def audit(args):
+    """
+    Method for handling audit action. This method generates an audit report of the account or
+    all enrollments. The default output format is csv, and it is configurable to xlsx or json
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if args.output_file:
         output_file = args.output_file
     else:
@@ -662,7 +1145,8 @@ def audit(args):
         if local_enrollments_file in files:
             with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
                 enrollments_string_content = enrollmentsFileHandler.read()
-            root_logger.info('\nGenerating CPS audit file...')
+            print('')
+            root_logger.info('Generating CPS audit file...')
             enrollments_json_content = json.loads(enrollments_string_content)
             enrollmentTotal = len(enrollments_json_content)
             count = 0
@@ -683,14 +1167,12 @@ def audit(args):
                     enrollment_json_info = enrollment_details_json
                     enrollment_json_info['contractId'] = contract_id
 
-
                     certResponse = cps_object.get_certificate(
                         session, enrollmentId)
                     expiration = ''
                     if certResponse.status_code == 200:
-                        cert = x509.load_pem_x509_certificate(
-                            certResponse.json()['certificate'].encode(), default_backend())
-                        expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
+                        certificate_details = certificate(certResponse.json()['certificate'])
+                        expiration = certificate_details.expiration
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
@@ -752,24 +1234,17 @@ def audit(args):
                             enrollment_json_info['productionDeployment'] = deployment_details.json()
                         else:
                             root_logger.debug(
-                                'Unable to fetch deployment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
+                                'Invalid API Response (' + str(deployment_details.status_code) + '): Unable to fetch deployment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                         #Populate the final list
                         final_json_array.append(enrollment_json_info)
 
                 else:
                     root_logger.debug(
-                        'Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
+                        'Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                     root_logger.debug(
                         'Reason: ' + json.dumps(enrollment_details.json(), indent=4))
 
-            if args.csv:
-                root_logger.info('\nDone! Output file written here: ' + output_file)
-            elif args.json:
-                root_logger.info('\nDone! Output file written here: ' + json_file)
-                with open(os.path.join(json_file), 'w') as f:
-                    f.write(json.dumps(final_json_array, indent=4))
-                    #os.remove(output_file)
-            else:
+            if args.xlsx:
                 root_logger.info('\nDone! Output file written here: ' + xlsxFile)
                 # Merge CSV files into XLSX
                 workbook = Workbook(os.path.join(xlsxFile))
@@ -783,13 +1258,33 @@ def audit(args):
                 # Delete the csv file at the end
                 if output_file.endswith('csv'):
                     os.remove(output_file)
+            elif args.json:
+                root_logger.info('\nDone! Output file written here: ' + json_file)
+                with open(os.path.join(json_file), 'w') as f:
+                    f.write(json.dumps(final_json_array, indent=4))
+                    #os.remove(output_file)
+            else:
+                #Default is csv format
+                print('')
+                root_logger.info('Done! Output file written here: ' + output_file)
 
         else:
-            root_logger.info('Unable to find local cache. Run setup again')
+            root_logger.info("Unable to find local cache. Please run 'setup' again")
             exit(0)
 
 
 def create(args):
+    """
+    Method for handling create action. This method is responsible to create a new enrollment/certificate.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     force = args.force
     fileName = args.file
     filePath = os.path.join(fileName)
@@ -813,8 +1308,10 @@ def create(args):
 
             #Validate number of contracts
             if len(contract_id_list) > 1:
-                root_logger.info('\nMultiple contracts exist, please specify' +
-                                ' --contract-id to use for new enrollment\n')
+                print('')
+                root_logger.info('Multiple contracts exist, please specify' +
+                                ' --contract-id to use for new enrollment')
+                print('')
                 exit(0)
             else:
                 #Get element from set
@@ -846,8 +1343,10 @@ def create(args):
             exit(-1)
 
         if not force:
-            root_logger.info('\nYou are about to create a new ' + certificateContent['ra'] + ' ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] + ' enrollment for Common Name (CN) = ' + certificateContent['csr']['cn'] +
-                             '\nDo you wish to continue (Y/N)?')
+            print('')
+            root_logger.info('You are about to create a new ' + certificateContent['ra'] + ' ' + certificateContent['validationType'] + '-' + certificateContent['certificateType'] + ' enrollment for Common Name (CN) = ' + certificateContent['csr']['cn'])
+            print('')
+            root_logger.info('Do you wish to continue (Y/N)?')
             decision = input()
         else:
             decision = 'y'
@@ -861,34 +1360,52 @@ def create(args):
             create_enrollmentResponse = cps_object.create_enrollment(
                 session, contractId, data=updateJsonContent)
             if create_enrollmentResponse.status_code != 200 and create_enrollmentResponse.status_code != 202:
-                root_logger.info('\nFAILED to create certificate: ')
+                print('')
+                root_logger.info('FAILED to create certificate: ')
                 root_logger.info('Response Code is: ' +
                                  str(create_enrollmentResponse.status_code))
                 root_logger.info(json.dumps(
                     create_enrollmentResponse.json(), indent=4))
             else:
                 root_logger.info('Successfully created Enrollment...')
-                root_logger.info('\nRefreshing local cache...')
+                print('')
+                root_logger.info('Refreshing local cache...')
                 setup(args, invoker='create')
                 root_logger.info('Done...')
         else:
             root_logger.info('Exiting...')
             exit(0)
     except FileNotFoundError:
-        root_logger.info('\nFilename: ' + fileName +
-                         ' is not found in templates folder. Exiting.\n')
+        print('')
+        root_logger.info('Filename: ' + fileName +
+                         ' is not found in templates folder. Exiting.')
+        print('')
         exit(1)
     except KeyError as missingKey:
         # This is caught if --force is not used and file is validated
-        root_logger.info('\n' + str(missingKey) +
-                         ' is not found in input file and is mandatory.\n')
+        print('')
+        root_logger.info(str(missingKey) +
+                         ' is not found in input file and is mandatory.')
+        print('')
         root_logger.info(
-            'Error: Input yaml file does not seem valid. Please check file format.\n')
+            'Error: Input yaml file does not seem valid. Please check file format.')
+        print('')
 
         exit(1)
 
 
 def update(args):
+    """
+    Method for handling update action. This method is responsible to update a specific enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     force = args.force
     fileName = args.file
     if not args.cn and not args.enrollment_id:
@@ -896,219 +1413,198 @@ def update(args):
             'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
-    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
-            enrollments_json_content = json.loads(enrollments_string_content)
 
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment id.')
-                exit(0)
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment id.')
+        exit(0)
 
-            try:
-                with open(os.path.join(fileName), mode='r') as inputFileHandler:
-                    file_content = inputFileHandler.read()
-            except FileNotFoundError:
-                root_logger.info('Unable to find file: ' + fileName)
-                exit(0)
+    try:
+        with open(os.path.join(fileName), mode='r') as inputFileHandler:
+            file_content = inputFileHandler.read()
+    except FileNotFoundError:
+        root_logger.info('Unable to find file: ' + fileName)
+        exit(0)
 
-            if fileName.endswith('.yml') or fileName.endswith('.yaml'):
-                jsonFormattedContent = yaml.load(file_content)
-                updateJsonContent = json.dumps(
-                    yaml.load(file_content), indent=2)
-                certificateContent = yaml.load(file_content)
-            elif fileName.endswith('.json'):
-                jsonFormattedContent = json.loads(file_content)
-                updateJsonContent = json.dumps(jsonFormattedContent, indent=2)
-                certificateContent = jsonFormattedContent
-            else:
-                root_logger.info(
-                    'Unable to determine the file format. Filename should end with either .json or .yml')
-                exit(-1)
+    if fileName.endswith('.yml') or fileName.endswith('.yaml'):
+        jsonFormattedContent = yaml.load(file_content)
+        updateJsonContent = json.dumps(
+            yaml.load(file_content), indent=2)
+        certificateContent = yaml.load(file_content)
+    elif fileName.endswith('.json'):
+        jsonFormattedContent = json.loads(file_content)
+        updateJsonContent = json.dumps(jsonFormattedContent, indent=2)
+        certificateContent = jsonFormattedContent
+    else:
+        root_logger.info(
+            'Unable to determine the file format. Filename should end with either .json or .yml')
+        exit(-1)
 
-            if not force:
-                enrollment_details = cps_object.get_enrollment(
-                    session, enrollmentId)
-                if enrollment_details.status_code == 200:
-                    enrollment_details_json = enrollment_details.json()
-                    #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-                    if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-                        root_logger.info('\nYou are about to update enrollment-id: ' + str(enrollmentId) + ' and CN: ' + cn +
-                                         ' \nDo you wish to continue? (Y/N)')
-                        decision = input()
-                    elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
-                        root_logger.debug(json.dumps(
-                            enrollment_details_json, indent=4))
-                        root_logger.info('\nThere already exists a pending change for enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn + '\nWould you like to override?' +
-                                         ' This will cancel the existing change and apply the new update.' +
-                                         ' \nPress (Y/N) to continue')
-                        decision = input()
-
-                # compare the data
-                '''if args.cn:
-                    root_logger.info('Fetching details of ' + cn +
-                                    ' with enrollment-id: ' + str(enrollmentId))
-                else:
-                    root_logger.info('Fetching details of enrollmentId: ' + str(enrollmentId))
-                enrollment_details = cps_object.get_enrollment(
-                    session, enrollmentId)'''
-
-                # Commenting the enrollment fetch call to compare
-                '''if enrollment_details.status_code == 200:
-                    enrollment_details_json = enrollment_details.json()
-                    #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-                    #root_logger.info(diff(jsonFormattedContent, enrollment_details_json))
-                    listOfPatches = jsonpatch.JsonPatch.from_diff(enrollment_details_json,jsonFormattedContent)
-                    table = PrettyTable(['Op', 'Path', 'Value'])
-                    table.align ="l"
-                    for everyPatch in listOfPatches:
-                        #root_logger.info(everyPatch)
-                        rowData = []
-                        action = everyPatch['op']
-                        rowData.append(action)
-                        attribute = everyPatch['path']
-                        #attribute = attribute.replace('/','-->')
-                        #attribute = attribute.replace('-->','',1)
-                        rowData.append(attribute)
-                        if 'value' in everyPatch:
-                            attributeValue = everyPatch['value']
-                        else:
-                            attributeValue = ''
-                        rowData.append(attributeValue)
-                        if action != 'move':
-                            if 'pendingChanges' not in attribute and 'certificateChainType' not in attribute and 'thirdParty' not in attribute\
-                            and 'location' not in attribute:
-                                table.add_row(rowData)
-                        #root_logger.info(str(action) + ' ' + str(attribute) + ' ' + str(attributeValue))
-                    root_logger.info('\nFollowing are the differences \n')
-                    root_logger.info(table
-
-                else:
-                    root_logger.info('Unable to fetch details of enrollmentId: ' + str(enrollmentId))
-                    exit(1)'''
-            # User passed --force so just go ahead by selecting Y
-            else:
-                # This is --force mode, so hardcode decision to y
-                decision = 'y'
-
-            if decision == 'y' or decision == 'Y':
-                root_logger.info('\nTrying to update enrollment...\n')
-                update_enrollmentResponse = cps_object.update_enrollment(
-                    session, enrollmentId, data=updateJsonContent)
-                if update_enrollmentResponse.status_code == 200:
-                    root_logger.info('Update successful. This change does not require a new certificate deployment' +
-                                     ' and will take effect on the next deployment. \nRun \'status\' to get updated progress details.')
-                elif update_enrollmentResponse.status_code == 202:
-                    root_logger.info(
-                        'Update successful. This change will trigger a new certificate deployment.  \nRun \'status\' to get updated progress details.')
-                else:
-                    root_logger.info(
-                        'Unable to update due to the below reason:\n')
-                    root_logger.info(json.dumps(
-                        update_enrollmentResponse.json(), indent=4))
-                root_logger.debug(update_enrollmentResponse.status_code)
+    if not force:
+        enrollment_details = cps_object.get_enrollment(
+            session, enrollmentId)
+        if enrollment_details.status_code == 200:
+            enrollment_details_json = enrollment_details.json()
+            #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
+            if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
+                print('')
+                root_logger.info('You are about to update enrollment-id: ' + str(enrollmentId) + ' and CN: ' + cn)
+                print('')
+                root_logger.info('Do you wish to continue? (Y/N)')
+                decision = input()
+            elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
                 root_logger.debug(json.dumps(
-                    update_enrollmentResponse.json(), indent=4))
-            else:
-                root_logger.info('Exiting...')
-                exit(0)
+                    enrollment_details_json, indent=4))
+                print('')
+                root_logger.info('There already exists a pending change for enrollment id: ' + str(enrollmentId) + ' and CN: ' + cn)
+                print('')
+                root_logger.info('Would you like to override? This will cancel the existing change and apply the new update.')
+                print('')
+                root_logger.info('Press (Y/N) to continue')
+                decision = input()
+
+    # User passed --force so just go ahead by selecting Y
+    else:
+        # This is --force mode, so hardcode decision to y
+        decision = 'y'
+
+    if decision == 'y' or decision == 'Y':
+        print('')
+        root_logger.info('Trying to update enrollment...')
+        print('')
+        update_enrollmentResponse = cps_object.update_enrollment(
+            session, enrollmentId, data=updateJsonContent)
+        if update_enrollmentResponse.status_code == 200:
+            root_logger.info('Update successful. This change does not require a new certificate deployment' +
+                             ' and will take effect on the next deployment. \nRun \'status\' to get updated progress details.')
+        elif update_enrollmentResponse.status_code == 202:
+            root_logger.info(
+                'Update successful. This change will trigger a new certificate deployment.  \nRun \'status\' to get updated progress details.')
+        else:
+            root_logger.info(
+                'Unable to update due to the below reason:')
+            print('')
+            root_logger.info(json.dumps(
+                update_enrollmentResponse.json(), indent=4))
+        root_logger.debug(update_enrollmentResponse.status_code)
+        root_logger.debug(json.dumps(
+            update_enrollmentResponse.json(), indent=4))
+    else:
+        root_logger.info('Exiting...')
+        exit(0)
 
 
 def cancel(args):
+    """
+    Method for handling cancel action. This method is responsible to cancel a specific enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if not args.cn and not args.enrollment_id:
         root_logger.info(
             'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
     cn = args.cn
-    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            # root_logger.info(policyStringContent)
-            enrollments_json_content = json.loads(enrollments_string_content)
 
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment id.')
-                exit(0)
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment id.')
+        exit(0)
 
-            enrollment_details = cps_object.get_enrollment(
-                session, enrollmentId)
-            if enrollment_details.status_code == 200:
-                enrollment_details_json = enrollment_details.json()
-                #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
-                if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
-                    root_logger.info(
-                        'The certificate is active, there are no current pending changes to cancel.')
-                elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
-                    if not args.force:
-                        root_logger.info('You are about to cancel the pending change for CN: ' +
-                                         cn + ' with enrollment-id: ' + str(enrollmentId) + '.\n' +
-                                         'If the certificate has never been active, this will also remove the enrollment.' +
-                                         ' \nDo you wish to continue? (Y/N)')
-                        decision = input()
-                    else:
-                        decision = 'y'
-
-                    # check the decision flag
-                    if decision == 'y' or decision == 'Y':
-                        changeId = int(
-                            enrollment_details_json['pendingChanges'][0].split('/')[-1])
-                        change_status_response = cps_object.get_change_status(
-                            session, enrollmentId, changeId)
-                        #root_logger.info(json.dumps(change_status_response.json(), indent=4))
-                        if change_status_response.status_code == 200:
-                            change_status_response_json = change_status_response.json()
-                            root_logger.info(
-                                '\nCancelling the request with change ID: ' + str(changeId))
-                            cancel_change_response = cps_object.cancel_change(
-                                session, enrollmentId, changeId)
-                            if cancel_change_response.status_code == 200:
-                                root_logger.info('\nCancellation successful')
-                            else:
-                                root_logger.info(
-                                    '\nCancellation is NOT successful')
-                        else:
-                            root_logger.info(
-                                '\nUnable to determine change status.')
-                        exit(-1)
-                    else:
-                        root_logger.info('\nExiting...\n')
-                else:
-                    root_logger.info(
-                        '\nUnable to determine change status.')
-                    exit(-1)
-
-            else:
-                root_logger.info(
-                    '\nStatus Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
-                exit(-1)
-        else:
+    enrollment_details = cps_object.get_enrollment(
+        session, enrollmentId)
+    if enrollment_details.status_code == 200:
+        enrollment_details_json = enrollment_details.json()
+        #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
+        if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
             root_logger.info(
-                '\nUnable to find enrollments.json file. Try to run -setup.')
+                'The certificate is active, there are no current pending changes to cancel.')
+        elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
+            if not args.force:
+                root_logger.info('You are about to cancel the pending change for CN: ' +
+                                 cn + ' with enrollment-id: ' + str(enrollmentId) + '.')
+                print('\n')
+                root_logger.info('If the certificate has never been active, this will also remove the enrollment. If this a third-party and there is a pending CSR, it will also be cancelled.')
+                print('\n')    
+                root_logger.info('Do you wish to continue? (Y/N)')
+                decision = input()
+            else:
+                decision = 'y'
+
+            # check the decision flag
+            if decision == 'y' or decision == 'Y':
+                changeId = int(
+                    enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                change_status_response = cps_object.get_change_status(
+                    session, enrollmentId, changeId)
+                #root_logger.info(json.dumps(change_status_response.json(), indent=4))
+                if change_status_response.status_code == 200:
+                    change_status_response_json = change_status_response.json()
+                    print('')
+                    root_logger.info(
+                        'Cancelling the request with change ID: ' + str(changeId))
+                    cancel_change_response = cps_object.cancel_change(
+                        session, enrollmentId, changeId)
+                    if cancel_change_response.status_code == 200:
+                        print('')
+                        root_logger.info('Cancellation successful')
+                        print('')
+                    else:
+                        root_logger.debug(
+                            'Invalid API Response (' + str(cancel_change_response.status_code) + '): Cancellation unsuccessful')
+                else:
+                    print('')
+                    root_logger.info(
+                        'Unable to determine change status.')
+                exit(-1)
+            else:
+                print('')
+                root_logger.info('Exiting...')
+                print('')
+        else:
+            print('')
+            root_logger.info(
+                'Unable to determine change status.')
             exit(-1)
+
+    else:
+        print('')
+        root_logger.info(
+            'Invalid API Response: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+        exit(-1)
 
 
 def retrieve_enrollment(args):
+    """
+    Method for handling retrieve-enrollment action. This method is responsible to retrieve details of an
+    enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
     if args.json:
         format = 'json'
     elif args.yaml:
@@ -1124,29 +1620,18 @@ def retrieve_enrollment(args):
             'common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
 
-    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
 
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            enrollments_json_content = json.loads(enrollments_string_content)
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment-id.')
+        exit(0)
 
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-                exit(0)
-        else:
-            root_logger.info(
-                '\nUnable to find enrollments.json file. Try to run setup.\n')
-            exit(-1)
 
     cn = args.cn
 
@@ -1169,11 +1654,23 @@ def retrieve_enrollment(args):
         print(Data)
     else:
         root_logger.info(
-            'Status Code: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+            'Invalid API Response: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
         exit(-1)
 
 
 def retrieve_deployed(args):
+    """
+    Method for handling retrieve-deployed action. This method is responsible to retrieve details of an
+    deployed certificate.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
 
     if not args.cn and not args.enrollment_id:
         root_logger.info(
@@ -1184,29 +1681,17 @@ def retrieve_deployed(args):
         root_logger.info('Please specify Either --leaf --chain or --info')
         exit(-1)
 
-    enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url)
 
-    for root, dirs, files in os.walk(enrollmentsPath):
-        local_enrollments_file = 'enrollments.json'
-        if local_enrollments_file in files:
-            with open(os.path.join(enrollmentsPath, local_enrollments_file), mode='r') as enrollmentsFileHandler:
-                enrollments_string_content = enrollmentsFileHandler.read()
-            enrollments_json_content = json.loads(enrollments_string_content)
-
-            enrollmentResult = check_enrollment_id(args, enrollments_json_content)
-            if enrollmentResult['found'] is True:
-                enrollmentId = enrollmentResult['enrollmentId']
-                cn = enrollmentResult['cn']
-            else:
-                root_logger.info(
-                    'Enrollment not found. Please double check common name (CN) or enrollment-id.')
-                exit(0)
-        else:
-            root_logger.info(
-                '\nUnable to find enrollments.json file. Try to run setup.\n')
-            exit(-1)
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment-id.')
+        exit(0)
 
     cn = args.cn
 
@@ -1223,38 +1708,24 @@ def retrieve_deployed(args):
         elif args.leaf:
             print(deployment_details.json()['certificate'])
         elif args.info:
-            cert = x509.load_pem_x509_certificate(
-                deployment_details.json()['certificate'].encode(), default_backend())
 
-            oids = x509.oid.ExtensionOID()
-
-            ext = cert.extensions.get_extension_for_oid(oids.SUBJECT_ALTERNATIVE_NAME)
-            sanList = []
-            sanList = str(ext.value.get_values_for_type(x509.DNSName)).replace(',',
-                      '').replace('[', '').replace(']', '')
-
-            expiration = str(cert.not_valid_after.date()) + ' ' + str(cert.not_valid_after.time()) + ' UTC'
-
-            for attribute in cert.subject:
-                subject = attribute.value
-
-            not_valid_before = str(cert.not_valid_before.date()) + ' ' + str(cert.not_valid_before.time()) + ' UTC'
-
-            for attribute in cert.issuer:
-                issuer = attribute.value
+            certificate_details = certificate(deployment_details.json()['certificate'])
 
             print('\n')
             print('Network      :   ' + network)
-            print('Common Name  :   ' + str(subject))
-            print('Not Before   :   ' + not_valid_before)
-            print('Expires      :   ' + expiration)
-            print('Issuer       :   ' + str(issuer))
-            print('SANs         :   ' + sanList + '\n')
+            print('Common Name  :   ' + str(certificate_details.subject))
+            print('Not Before   :   ' + str(certificate_details.not_valid_before))
+            print('Expires      :   ' + str(certificate_details.expiration))
+            print('Issuer       :   ' + str(certificate_details.issuer))
+            if hasattr(certificate_details, 'sanList'):
+                print('SANs         :   ' + str(certificate_details.sanList) + '\n')
+            else:
+                print('SANs         :   \n')
         else:
             root_logger.info('Either --info OR --cert is mandatory')
 
     else:
-        root_logger.info('Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
+        root_logger.info('Invalid API Response (' + str(deployment_details.status_code) + '): Unable to fetch deployment details for enrollment-id ' + str(enrollmentId))
 
 
 def confirm_setup(args):

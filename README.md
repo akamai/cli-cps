@@ -1,5 +1,5 @@
 # cli-cps
-Provides a way to interact with the Akamai Certificate Provisioning System (CPS) via Open APIs. Provides various functionality such as viewing certificate details, generating audits, checking change statuses, and creating/modifying certificates.
+Provides a way to interact with the Akamai Certificate Provisioning System (CPS) via Open APIs. Provides various functionality such as viewing certificate details, generating audits, checking/acknowledging change statuses, creating/modifying certificates, and working with third party certificates.
 
 ## Local Install
 * Python 3+
@@ -9,6 +9,7 @@ Provides a way to interact with the Akamai Certificate Provisioning System (CPS)
 In order to use this module, you need to:
 * Set up your credential files as described in the [authorization](https://developer.akamai.com/introduction/Prov_Creds.html) and [credentials](https://developer.akamai.com/introduction/Conf_Client.html) sections of the getting started guide on developer.akamai.com.  
 * When working through this process you need to give your API credential the "CPS" and "Contracts-API_Contracts" Grant.  The section in your configuration file should be called 'cps'. 
+* You may also use the --section <name> to use the specific section credentials from your .edgerc file
 
 ```
 [cps]
@@ -28,7 +29,10 @@ Here is a summary of the current functionality:
 * Create an enrollment from a yaml or json file
 * Update an enrollment from a yaml or json file
 * Cancel pending enrollment changes
-* View and verify current change status (DV certs only for now)
+* View and verify current change status
+* Acknowledge pre/post verification warnings
+* Acknowledge change management
+* Work with 3rd party certificates (download/upload signed csr)
 
 ## akamai-cps
 Main program file that wraps this functionality in a command line utility:
@@ -41,6 +45,7 @@ Main program file that wraps this functionality in a command line utility:
 * [create](#create)
 * [update](#update)
 * [cancel](#cancel)
+* [proceed](#proceed)
 
 
 ### setup
@@ -100,13 +105,13 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 
 ### status
-Get current change status for an enrollment. At this time only workflow for DV SAN is supported.
+Get current change status for an enrollment.
 
 ```bash
 %  akamai-cps status --cn sample.customer.com
 %  akamai-cps status --enrollment-id 12345
-%  akamai-cps status --enrollment-id 12345 --validation-type http
-%  akamai-cps status --cn sample.customer.com --validation-type dns
+%  akamai-cps status --enrollment-id 12345 --validation-type http (use if certificate type is DV)
+%  akamai-cps status --cn sample.customer.com --validation-type dns (use is certificate type is DV)
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -114,8 +119,12 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 ```
 --cn <value>                 Common name (CN) of the enrollment
 --enrollment-id <value>      Enrollment id 
---validation-type            Specify either 'http' or 'dns' for DV SAN
+--validation-type            Specify either 'http' or 'dns' (for DV certificates)
+```
 
+**If certificate type is third-party and CSR is ready, you may use this command to output the csr directly to a file:
+```bash
+%  akamai status --cn sample-cn.example.com > file.csr
 ```
 
 ### audit
@@ -125,14 +134,16 @@ Generate an audit of all enrollments to a .xlsx, .csv, or .json file
 %  akamai-cps audit
 %  akamai-cps audit --json
 %  akamai-cps audit --csv
+%  akamai-cps audit --xslx
 %  akamai-cps audit --output-file sample.xlsx
 ```
 
 Here are the flags of interest:
 
 ```
---csv                       csv format (optional: if not specificed, default is .xslx)
---json                      json format (optional: if not specificed, default is .xslx)  
+--csv                       csv format (optional: if not specificed, default is .csv)
+--json                      json format (optional: if not specificed, default is .csv)
+--xlsx                      xslx format (optional: if not specificed, default is .csv) 
 --output-file <value>       Filename to be saved (optional: if not specifed, generated file will be put in audit folder). 
 ```
 
@@ -183,4 +194,23 @@ The flags of interest for cancel are (please specify either --cn or --enrollment
 ```
 --cn <value>                  Common name (CN) of the enrollment
 --enrollment-id <value>       Enrollment id 
+```
+
+### proceed
+If there is a pending change that requires user input, proceed accordingly
+
+```bash
+%  akamai-cps proceed --cn sample.customer.com
+%  akamai-cps proceed --enrollment-id 12345
+%  akamai-cps proceed --enrollment-id 12345 --cert-file signed.csr --trust-file ca.crt (use if third party certificate and ready to upload signed csr)
+%  akamai-cps proceed --cn sample.customer.com --cert-file signed.csr --trust-file ca.crt (use if third party certifcate and ready to upload signed csr)
+```
+
+Here are the flags of interest (please specify either --cn or --enrollment-id):
+
+```
+--cn <value>                 Common name (CN) of the enrollment
+--enrollment-id <value>      Enrollment id 
+--cert-file                  Signed certificate (PEM) file (for uploading third party certificates)
+--trust-file                 Trust-chain (PEM) file (for uploading third party certificates)
 ```
