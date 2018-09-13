@@ -16,8 +16,12 @@ from cryptography.hazmat.backends import default_backend
 import datetime
 
 class cps(object):
-    def __init__(self, access_hostname):
+    def __init__(self, access_hostname, account_switch_key):
         self.access_hostname = access_hostname
+        if account_switch_key != '':
+            self.account_switch_key = '&accountSwitchKey=' + account_switch_key
+        else:
+            self.account_switch_key = ''
 
     def get_contracts(self, session):
         """
@@ -33,8 +37,15 @@ class cps(object):
         contracts_response : contracts_response
             (contracts_response) Object with all details
         """
-        contracts__url = 'https://' + self.access_hostname + '/contract-api/v1/contracts/identifiers?depth=TOP'
-        contracts_response = session.get(contracts__url)
+        contracts_url = 'https://' + self.access_hostname + '/contract-api/v1/contracts/identifiers?depth=TOP'
+        #This is to ensure accountSwitchKey works for internal users
+        if '?' in contracts_url:
+            contracts_url = contracts_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            contracts_url = contracts_url + self.account_switch_key
+        contracts_response = session.get(contracts_url)
         return contracts_response
 
     def create_enrollment(self, session, contractId, data):
@@ -57,6 +68,13 @@ class cps(object):
         }
         create_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments?contractId=' + contractId
+        if '?' in create_enrollment_url:
+            create_enrollment_url = create_enrollment_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            create_enrollment_url = create_enrollment_url + self.account_switch_key
+
         create_enrollment_response = session.post(
             create_enrollment_url, data=data, headers=headers)
         return create_enrollment_response
@@ -81,6 +99,14 @@ class cps(object):
         }
         update_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId) + '?allow-cancel-pending-changes=true'
+
+        if '?' in update_enrollment_url:
+            update_enrollment_url = update_enrollment_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            update_enrollment_url = update_enrollment_url + self.account_switch_key
+
         update_enrollment_response = session.put(
             update_enrollment_url, data=data, headers=headers)
         return update_enrollment_response
@@ -109,6 +135,13 @@ class cps(object):
             list_enrollments_url = 'https://' + self.access_hostname + \
                 '/cps/v2/enrollments?contractId=' + contractId
 
+        if '?' in list_enrollments_url:
+            list_enrollments_url = list_enrollments_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            list_enrollments_url = list_enrollments_url + self.account_switch_key
+
         list_enrollments_response = session.get(
             list_enrollments_url, headers=headers)
         return list_enrollments_response
@@ -132,6 +165,14 @@ class cps(object):
         }
         get_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId)
+
+        if '?' in get_enrollment_url:
+            get_enrollment_url = get_enrollment_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            get_enrollment_url = get_enrollment_url + self.account_switch_key
+
         get_enrollment_response = session.get(get_enrollment_url, headers=headers)
         return get_enrollment_response
 
@@ -155,6 +196,14 @@ class cps(object):
         get_change_status_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + \
             str(enrollmentId) + '/changes/' + str(changeId)
+
+        if '?' in get_change_status_url:
+            get_change_status_url = get_change_status_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            get_change_status_url = get_change_status_url + self.account_switch_key
+
         get_change_status_response = session.get(get_change_status_url, headers=headers)
         return get_change_status_response
 
@@ -177,6 +226,14 @@ class cps(object):
         }
         cancel_change_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId) + '/changes/' + str(changeId)
+
+        if '?' in cancel_change_url:
+            cancel_change_url = cancel_change_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            cancel_change_url = cancel_change_url + self.account_switch_key
+
         cancel_change_response = session.delete(
             cancel_change_url, headers=headers)
         return cancel_change_response
@@ -201,6 +258,14 @@ class cps(object):
         get_certificate_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + \
             str(enrollmentId) + '/deployments/' + network
+
+        if '?' in get_certificate_url:
+            get_certificate_url = get_certificate_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            get_certificate_url = get_certificate_url + self.account_switch_key
+
         get_certificate_response = session.get(get_certificate_url, headers=headers)
         return get_certificate_response
 
@@ -222,6 +287,14 @@ class cps(object):
             "Accept": "application/vnd.akamai.cps.dv-challenges.v2+json"
         }
         dvChangeInfo_url = 'https://' + self.access_hostname + endpoint
+
+        if '?' in dvChangeInfo_url:
+            dvChangeInfo_url = dvChangeInfo_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            dvChangeInfo_url = dvChangeInfo_url + self.account_switch_key
+
         dvChangeInfo_response = session.get(dvChangeInfo_url, headers=headers)
         return dvChangeInfo_response
 
@@ -242,6 +315,14 @@ class cps(object):
         """
 
         custom_url = 'https://' + self.access_hostname + endpoint
+
+        if '?' in custom_url:
+            custom_url = custom_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            custom_url = custom_url + self.account_switch_key
+
         if data == 'optional':
             custom_response = session.post(custom_url, headers=headers)
         else:
@@ -263,6 +344,14 @@ class cps(object):
             (get_response) Object with all details
         """
         custom_url = 'https://' + self.access_hostname + endpoint
+
+        if '?' in custom_url:
+            custom_url = custom_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            custom_url = custom_url + self.account_switch_key
+
         custom_response = session.get(custom_url, headers=headers)
         return custom_response
 
