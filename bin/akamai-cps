@@ -34,6 +34,7 @@ from prettytable import PrettyTable
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
 from xlsxwriter.workbook import Workbook
 import csv
+from headers import headers
 
 
 PACKAGE_VERSION = "0.1.0"
@@ -458,21 +459,8 @@ def get_headers(category_name, action):
     Local json object from headers.json with the appropriate request headers to include
     """
     try:
-        code_repo = os.environ["AKAMAI_CLI_HOME"]
-    except KeyError as e:
-        print('\n')
-        root_logger.info('%s is not found as environment variable. Please set the same to Akamai CLI installation directory'% str(e))
-        root_logger.info('Default is user\'s Home directory')
-        root_logger.info('Example command for linux/mac: export AKAMAI_CLI_HOME=/Users/<user_name>')
-        print('\n')
-        exit(-1)
-
-    try:
-        headers_file_location = code_repo + '/.akamai-cli/src/cli-cps/bin/headers.json'
-        with open(headers_file_location, mode='r') as headers_file:
-            headers_content = headers_file.read()
-        headers_content_json = json.loads(headers_content)
-        return headers_content_json['category'][category_name][action]
+        headers_content = headers().data
+        return headers_content['category'][category_name][action]
     except FileNotFoundError:
         root_logger.info('headers.json file is not found. Update your CPS pacakage for CLI\n')
         exit(-1)
@@ -1551,7 +1539,7 @@ def cancel(args):
                                  cn + ' with enrollment-id: ' + str(enrollmentId) + '.')
                 print('\n')
                 root_logger.info('If the certificate has never been active, this will also remove the enrollment. If this a third-party and there is a pending CSR, it will also be cancelled.')
-                print('\n')    
+                print('\n')
                 root_logger.info('Do you wish to continue? (Y/N)')
                 decision = input()
             else:
