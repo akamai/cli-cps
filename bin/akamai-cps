@@ -282,7 +282,7 @@ def create_sub_command(
         action="store_true")
 
     optional.add_argument(
-        "--switch",
+        "--account-key",
         help="Account Switch Key",
         default="")
 
@@ -372,7 +372,7 @@ def setup(args, invoker='default'):
 
     # Create the wrapper object to make calls
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
     enrollmentOutput = []
     contracts_path = os.path.join('setup')
     contracts_file_present = False
@@ -906,7 +906,7 @@ def status(args):
     cn = args.cn
     enrollmentsPath = os.path.join('setup')
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
 
     # check local setup file to find enrollmentId necessary for CPS API calls
     enrollmentResult = check_enrollment_id(args)
@@ -1023,7 +1023,7 @@ def list(args):
     None
     """
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
     contract_id_set = set()
     try:
         # Iterate through all contracts
@@ -1147,7 +1147,7 @@ def audit(args):
             Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
             SNI, Country, State, Organization, Organization Unit \n')
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
     for root, dirs, files in os.walk(enrollmentsPath):
         local_enrollments_file = 'enrollments.json'
         if local_enrollments_file in files:
@@ -1251,7 +1251,7 @@ def audit(args):
                         'Invalid API Response (' + str(enrollment_details.status_code) + '): Unable to fetch Enrollment/Certificate details in production for enrollment-id: ' + str(enrollmentId))
                     root_logger.info(
                         'Reason: ' + json.dumps(enrollment_details.json(), indent=4))
-                    print('\n')    
+                    print('\n')
 
             if args.xlsx:
                 root_logger.info('\nDone! Output file written here: ' + xlsxFile)
@@ -1364,7 +1364,7 @@ def create(args):
             root_logger.info(
                 'Uploading certificate information and creating enrollment..')
             base_url, session = init_config(args.edgerc, args.section)
-            cps_object = cps(base_url,args.switch)
+            cps_object = cps(base_url,args.account_key)
             # Send a request to create enrollment using wrapper function
             create_enrollmentResponse = cps_object.create_enrollment(
                 session, contractId, data=updateJsonContent)
@@ -1423,7 +1423,7 @@ def update(args):
         exit(-1)
     cn = args.cn
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
 
     enrollmentResult = check_enrollment_id(args)
     if enrollmentResult['found'] is True:
@@ -1527,7 +1527,7 @@ def cancel(args):
         exit(-1)
     cn = args.cn
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
 
     enrollmentResult = check_enrollment_id(args)
     if enrollmentResult['found'] is True:
@@ -1630,7 +1630,7 @@ def retrieve_enrollment(args):
         exit(-1)
 
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
 
     enrollmentResult = check_enrollment_id(args)
     if enrollmentResult['found'] is True:
@@ -1691,7 +1691,7 @@ def retrieve_deployed(args):
         exit(-1)
 
     base_url, session = init_config(args.edgerc, args.section)
-    cps_object = cps(base_url,args.switch)
+    cps_object = cps(base_url,args.account_key)
 
     enrollmentResult = check_enrollment_id(args)
     if enrollmentResult['found'] is True:
