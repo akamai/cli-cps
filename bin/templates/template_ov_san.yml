@@ -2,8 +2,8 @@
 # #######################################
 # Basic Cert Info (DO NOT MODIFY)
 # #######################################
-validationType: dv
-ra: lets-encrypt
+validationType: ov
+ra: symantec
 certificateType: san
 # #######################################
 # Akamai Defaults (MODIFY IF NEEDED, OTHERWISE LEAVE AS DEFAULT)
@@ -14,12 +14,7 @@ networkConfiguration:
   preferredCiphers: ak-akamai-default-2017q3
   mustHaveCiphers: ak-akamai-default-2017q3
   disallowedTlsVersions: []
-  # SNI: Use this section to designate SNI information
   sni:
-    cloneDnsNames: true
-    dnsNames:
-    - <FILLIN>
-    - <FILLIN AS NEEDED>
   secureNetwork: enhanced-tls
   geography: core
 # #######################################

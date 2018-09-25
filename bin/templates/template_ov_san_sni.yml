@@ -2,8 +2,8 @@
 # #######################################
 # Basic Cert Info (DO NOT MODIFY)
 # #######################################
-validationType: dv
-ra: lets-encrypt
+validationType: ov
+ra: symantec
 certificateType: san
 # #######################################
 # Akamai Defaults (MODIFY IF NEEDED, OTHERWISE LEAVE AS DEFAULT)
