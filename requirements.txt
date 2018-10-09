@@ -4,4 +4,3 @@ prettytable==0.7.2
 cryptography==2.1.4
 pyyAML==3.12
 xlsxwriter==1.0.0
-
