@@ -59,17 +59,17 @@ Does a one time download of CPS enrollments and common names for faster local re
 List all current enrollments in Akamai CPS
 
 ```bash
-%  akamai-cps list
+%  akamai cps list
 ```
 
 ### retrieve-enrollment
 Get specific details for an enrollment and outputs the details in raw json or yaml format. Please specify either --cn or --enrollment-id
 
 ```bash
-%  akamai-cps retrieve-enrollment --cn sample.customer.com
-%  akamai-cps retrieve-enrollment --enrollment-id 12345
-%  akamai-cps retrieve-enrollment --cn sample.customer.com --json
-%  akamai-cps retrieve-enrollment --cn sample.customer.com --yaml
+%  akamai cps retrieve-enrollment --cn sample.customer.com
+%  akamai cps retrieve-enrollment --enrollment-id 12345
+%  akamai cps retrieve-enrollment --cn sample.customer.com --json
+%  akamai cps retrieve-enrollment --cn sample.customer.com --yaml
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -86,10 +86,10 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 Get specific details for the actual certificate deployed on the Akamai platform, including leaf, chain, or summary information. Please specify either --cn or --enrollment-id and one of --leaf, --chain, or --info arguments.
 
 ```bash
-%  akamai-cps retrieve-deployed --cn sample.customer.com --info
-%  akamai-cps retrieve-deployed --enrollment-id 12345 --info --network staging
-%  akamai-cps retrieve-deployed --cn sample.customer.com --leaf --network production
-%  akamai-cps retrieve-deployed --cn sample.customer.com --chain --network staging
+%  akamai cps retrieve-deployed --cn sample.customer.com --info
+%  akamai cps retrieve-deployed --enrollment-id 12345 --info --network staging
+%  akamai cps retrieve-deployed --cn sample.customer.com --leaf --network production
+%  akamai cps retrieve-deployed --cn sample.customer.com --chain --network staging
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -108,10 +108,10 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 Get current change status for an enrollment.
 
 ```bash
-%  akamai-cps status --cn sample.customer.com
-%  akamai-cps status --enrollment-id 12345
-%  akamai-cps status --enrollment-id 12345 --validation-type http (use if certificate type is DV)
-%  akamai-cps status --cn sample.customer.com --validation-type dns (use is certificate type is DV)
+%  akamai cps status --cn sample.customer.com
+%  akamai cps status --enrollment-id 12345
+%  akamai cps status --enrollment-id 12345 --validation-type http (use if certificate type is DV)
+%  akamai cps status --cn sample.customer.com --validation-type dns (use is certificate type is DV)
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -124,18 +124,18 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 **If certificate type is third-party and CSR is ready, you may use this command to output the csr directly to a file:
 ```bash
-%  akamai status --cn sample-cn.example.com > file.csr
+%  akamai cps status --cn sample-cn.example.com > file.csr
 ```
 
 ### audit
 Generate an audit of all enrollments to a .xlsx, .csv, or .json file
 
 ```bash
-%  akamai-cps audit
-%  akamai-cps audit --json
-%  akamai-cps audit --csv
-%  akamai-cps audit --xslx
-%  akamai-cps audit --output-file sample.xlsx
+%  akamai cps audit
+%  akamai cps audit --json
+%  akamai cps audit --csv
+%  akamai cps audit --xslx
+%  akamai cps audit --output-file sample.xlsx
 ```
 
 Here are the flags of interest:
@@ -152,8 +152,8 @@ Here are the flags of interest:
 Create a new certificate enrollment.
 
 ```bash
-%  akamai-cps create --file /templates/sample.yml
-%  akamai-cps create --file /templates/sample.json --force
+%  akamai cps create --file /templates/sample.yml
+%  akamai cps create --file /templates/sample.json --force
 ```
 
 The flags of interest are:
@@ -167,8 +167,8 @@ The flags of interest are:
 Update a specified enrollment.  Depending on the type of change, this may or may not trigger a new certificate deployment.
 
 ```bash
-%  akamai-cps update --cn test.edgekey.net --file sample.yml
-%  akamai-cps update --cn test.edgekey.net --file sample.json --force
+%  akamai cps update --cn test.edgekey.net --file sample.yml
+%  akamai cps update --cn test.edgekey.net --file sample.json --force
 ```
 
 The flags of interest are (please specify either --cn or --enrollment-id):
@@ -185,8 +185,8 @@ The flags of interest are (please specify either --cn or --enrollment-id):
 Cancel any current pending change for an enrollment.  This will only delete the enrollment too if the certificate has never been deployed on the platform.
 
 ```bash
-%  akamai-cps cancel --cn sample.customer.com
-%  akamai-cps cancel --enrollment-id 12345
+%  akamai cps cancel --cn sample.customer.com
+%  akamai cps cancel --enrollment-id 12345
 ```
 
 The flags of interest for cancel are (please specify either --cn or --enrollment-id):
@@ -200,10 +200,10 @@ The flags of interest for cancel are (please specify either --cn or --enrollment
 If there is a pending change that requires user input, proceed accordingly
 
 ```bash
-%  akamai-cps proceed --cn sample.customer.com
-%  akamai-cps proceed --enrollment-id 12345
-%  akamai-cps proceed --enrollment-id 12345 --cert-file signed.csr --trust-file ca.crt (use if third party certificate and ready to upload signed csr)
-%  akamai-cps proceed --cn sample.customer.com --cert-file signed.csr --trust-file ca.crt (use if third party certifcate and ready to upload signed csr)
+%  akamai cps proceed --cn sample.customer.com
+%  akamai cps proceed --enrollment-id 12345
+%  akamai cps proceed --enrollment-id 12345 --cert-file signed.csr --trust-file ca.crt (use if third party certificate and ready to upload signed csr)
+%  akamai cps proceed --cn sample.customer.com --cert-file signed.csr --trust-file ca.crt (use if third party certifcate and ready to upload signed csr)
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
