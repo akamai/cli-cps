@@ -187,6 +187,13 @@ def cli():
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
 
+    actions["delete"] = create_sub_command(
+        subparsers, "delete", "Delete an existing enrollment forever!",
+        [{"name": "force", "help": "Skip the stdout display and user confirmation"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of certificate"}],
+        None)
+
     actions["audit"] = create_sub_command(
         subparsers, "audit", "Generate a report in csv format by default. Can also use --json/xlsx",
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
@@ -1592,6 +1599,91 @@ def cancel(args):
             print('')
             root_logger.info(
                 'Unable to determine change status.')
+            exit(-1)
+
+    else:
+        print('')
+        root_logger.info(
+            'Invalid API Response: ' + str(enrollment_details.status_code) + '. Unable to fetch Certificate details.')
+        exit(-1)
+
+def delete(args):
+    """
+    Method for handling delete action. This method is responsible to delete a specific enrollment.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
+    if not args.cn and not args.enrollment_id:
+        root_logger.info(
+            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        exit(-1)
+    cn = args.cn
+    base_url, session = init_config(args.edgerc, args.section)
+    cps_object = cps(base_url,args.account_key)
+
+    enrollmentResult = check_enrollment_id(args)
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment id.')
+        exit(0)
+
+    enrollment_details = cps_object.get_enrollment(
+        session, enrollmentId)
+    if enrollment_details.status_code == 200:
+        enrollment_details_json = enrollment_details.json()
+        #root_logger.info(json.dumps(enrollment_details.json(), indent=4))
+        if 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
+            ## It's good idea to cancel active changes before deleting
+            print('')
+            root_logger.info(
+                'There is an active change for this certificate. Please cancel the change before deleting this enrollment')
+            exit(-1)
+
+        elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) == 0:
+            ## no pending changes, so delete
+            if not args.force:
+                root_logger.info('You are about to delete the live certificate which may impact production traffic for cn: ' +
+                                 cn + ' with enrollment-id: ' + str(enrollmentId) + '.')
+                print('\n')
+                root_logger.info('Do you wish to continue? (Y/N)')
+                decision = input()
+            else:
+                decision = 'y'
+
+            # check the decision flag
+            if decision == 'y' or decision == 'Y':
+                
+                root_logger.info(
+                    'Deleting enrollment ID: ' + str(enrollmentId) + ' with CN: ' + cn )
+                delete_change_response = cps_object.delete_enrollment(
+                    session, enrollmentId)
+                if delete_change_response.status_code == 200 or delete_change_response.status_code == 202:
+                    print('')
+                    root_logger.info('Deletion successful')
+                    print('')
+                    exit(0)
+                else:
+                    root_logger.debug(
+                        'Invalid API Response (' + str(delete_change_response.status_code) + '): Deletion unsuccessful')
+                    exit(-1)
+                
+            else:
+                print('')
+                root_logger.info('Exiting...')
+                print('')
+        else:
+            print('')
+            root_logger.info(
+                'Unable to determine change status to delete enrollment')
             exit(-1)
 
     else:
