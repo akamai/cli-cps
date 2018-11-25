@@ -102,3 +102,9 @@ ENV/
 
 #VSCODE IDE
 .vscode/*
+
+#module specific artifacts
+enrollments.json
+
+#OS artifacts
+.DS_Store
