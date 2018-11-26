@@ -46,6 +46,7 @@ Main program file that wraps this functionality in a command line utility:
 * [update](#update)
 * [cancel](#cancel)
 * [proceed](#proceed)
+* [delete](#delete)
 
 
 ### setup
@@ -213,4 +214,18 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 --enrollment-id <value>      Enrollment id 
 --cert-file                  Signed certificate (PEM) file (for uploading third party certificates)
 --trust-file                 Trust-chain (PEM) file (for uploading third party certificates)
+```
+### delete
+Remove a certificate and enrollment from the Akamai Network.  This will only delete the enrollment if the certificate has no pending changes
+
+```bash
+%  akamai cps delete --cn sample.customer.com
+%  akamai cps delete --enrollment-id 12345
+```
+
+The flags of interest for delete are (please specify either --cn or --enrollment-id):
+
+```
+--cn <value>                  Common name (CN) of the enrollment
+--enrollment-id <value>       Enrollment id 
 ```
