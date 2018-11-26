@@ -29,6 +29,7 @@ Here is a summary of the current functionality:
 * Create an enrollment from a yaml or json file
 * Update an enrollment from a yaml or json file
 * Cancel pending enrollment changes
+* Delete live enrollments from Network
 * View and verify current change status
 * Acknowledge pre/post verification warnings
 * Acknowledge change management
