@@ -1323,12 +1323,36 @@ def create(args):
                         contract_id_list.add(contractId)
 
             #Validate number of contracts
-            if len(contract_id_list) > 1:
-                print('')
-                root_logger.info('Multiple contracts exist, please specify' +
-                                ' --contract-id to use for new enrollment')
-                print('')
+            if len(contract_id_list) > 1  or len(contract_id_list) == 0 :
+            
+                if len(contract_id_list) == 0:
+                    print('')
+                    root_logger.info('No existing certificates on contract. Please specify --contract-id to use for new enrollment')
+                    print('')
+                
+                else: 
+                    print('')
+                    root_logger.info('Multiple contracts exist, please specify --contract-id to use for new enrollment')
+                    print('')
+
+                base_url, session = init_config(args.edgerc, args.section)
+                cps_object = cps(base_url,args.account_key)
+                contractIds = cps_object.get_contracts(session)
+
+                contracts_json_content = []
+
+                if contractIds.status_code == 200:
+                    contracts = contractIds.json()
+                    for contractId in contracts:
+                        if contractId.startswith('ctr_'):
+                            contractId = contractId.split('_')[1]
+                        contracts_json_content.append(contractId)
+
+                contractStr = ", ".join(contracts_json_content)
+                root_logger.info("Try one of these: {}".format(contractStr))
+
                 exit(0)
+
             else:
                 #Get element from set
                 contractId = contract_id_list.pop()
