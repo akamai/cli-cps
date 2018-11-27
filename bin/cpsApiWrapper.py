@@ -238,6 +238,39 @@ class cps(object):
             cancel_change_url, headers=headers)
         return cancel_change_response
 
+    def delete_enrollment(self, session, enrollmentId):
+        """
+        Function to delete this enrollment
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        delete_enrollment_response : delete_enrollment_response
+            (delete_enrollment_response) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
+        }
+
+        #/cps/v2/enrollments/{enrollmentId}
+        delete_enrollment_url = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + str(enrollmentId)
+
+        if '?' in delete_enrollment_url:
+            delete_enrollment_url = delete_enrollment_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            delete_enrollment_url = delete_enrollment_url + self.account_switch_key
+
+        delete_enrollment_response = session.delete(
+            delete_enrollment_url, headers=headers)
+        return delete_enrollment_response
+
     def get_certificate(self, session, enrollmentId, network='production'):
         """
         Function to Get a Certificate
