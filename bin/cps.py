@@ -22,6 +22,7 @@ import json
 import datetime
 from cpsApiWrapper import cps
 from cpsApiWrapper import certificate
+from spsAPIWraapper import sps
 import argparse
 import configparser
 import requests
@@ -169,6 +170,17 @@ def cli():
         [{"name": "force","help": "No value"},
          {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}],
         [{"name": "file", "help": "Input filename from templates folder to read enrollment details"}])
+
+    actions["createhost"] = create_sub_command(
+        subparsers, "createhost",
+        "Create a new enrollment from a yaml or json input file "
+        "(Use --file to specify the filename)",
+        [{"name": "force","help": "No value"},
+         {"name": "edgekeyhost", "help": "edgekeyhost name you want to create"},
+         {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
+         {"name": "cn", "help": "Common Name of Certificate to update"},
+         {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}],
+        [{"name": "group-id", "help": "Group ID under which the edge hostname should live"} ])
 
     actions["update"] = create_sub_command(
         subparsers, "update",
@@ -346,6 +358,10 @@ def check_enrollment_id(args):
                     enrollmentResult['enrollmentId'] = every_enrollment_info['enrollmentId']
                     enrollmentResult['cn'] = every_enrollment_info['cn']
                     enrollmentResult['found'] = True
+
+                    if 'contractId' in every_enrollment_info:
+                        enrollmentResult['contractId'] = every_enrollment_info['contractId']
+
                     break
     # check by enrollment-id argument
     else:
@@ -355,6 +371,10 @@ def check_enrollment_id(args):
                 enrollmentResult['enrollmentId'] = args.enrollment_id
                 enrollmentResult['cn'] = every_enrollment_info['cn']
                 enrollmentResult['found'] = True
+
+                if 'contractId' in every_enrollment_info:
+                    enrollmentResult['contractId'] = every_enrollment_info['contractId']
+
                 break
 
     return enrollmentResult
@@ -1288,6 +1308,61 @@ def audit(args):
             root_logger.info("Unable to find local cache. Please run 'setup' again")
             exit(0)
 
+def createhost(args):
+
+    """
+    Method for handling createhost action. This method is responsible to createhost a new edge hostname given an enrollment/certificate.
+
+    Parameters
+    -----------
+    args : <string>
+        Default args parameter (usually no argument specified)
+    Returns
+    -------
+    None
+    """
+
+    force = args.force
+    if not args.cn and not args.enrollment_id:
+        root_logger.info(
+            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+        exit(-1)
+    cn = args.cn
+    groupId = args.group_id
+
+    edgehost = cn
+    if not (args.edgekeyhost is None):
+        edgehost = args.edgekeyhost
+
+    base_url, session = init_config(args.edgerc, args.section)
+    sps_object = sps(base_url,args.account_key)
+
+    enrollmentResult = check_enrollment_id(args)
+
+    if enrollmentResult['found'] is True:
+        enrollmentId = enrollmentResult['enrollmentId']
+        cn = enrollmentResult['cn']
+        contractId = enrollmentResult['contractId']
+        response = sps_object.create_enrollment_hostname(session, contractId, groupId, enrollmentId, edgehost)
+
+        if response.status_code == 200:
+            sps_json = response.json()
+        
+        else:
+            root_logger.info("{} Error creating Edgekey.net hostname".format(response.status_code))     
+            contentType = response.headers['Content-Type']
+
+            if contentType == 'application/problem+json':
+                error_json = response.json()
+                errorStr = json.dumps(error_json)
+                root_logger.info(errorStr)
+
+            exit(-1)
+
+    else:
+        root_logger.info(
+            'Enrollment not found. Please double check common name (CN) or enrollment id.')
+        exit(0)
 
 def create(args):
     """
