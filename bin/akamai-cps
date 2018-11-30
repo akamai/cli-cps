@@ -16,7 +16,11 @@ This code leverages akamai OPEN API. to control Certificates deployed in Akamai 
 In case you need quick explanation contact the initiators.
 Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com
 """
-
+import sys
+if sys.version_info[0] < 3:
+    print("Python 3 is required. I'm using: " + sys.executable)
+    exit(1)
+    
 from cps import cli 
 
 # Final or common Successful exit
