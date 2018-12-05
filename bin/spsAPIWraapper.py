@@ -56,4 +56,35 @@ class sps(object):
 
         return create_enrollment_response
 
+    def check_sps_job(self, session, contractId, groupId, spsId):
+        """
+        Function to get SPS Job Id Info
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        spsJobResponse : spsJobResponse
+            (spsJobResponse) Object with all details
+        """
+
+        #application/x-www-form-urlencoded
+        headers = {}
+
+        url = "https://{}/config-secure-provisioning-service/v1/sps-requests/{}?information=true&contractId={}&groupId={}".format(self.access_hostname,spsId,contractId,groupId)
+    
+        if '?' in url:
+            url = url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            url = url + self.account_switch_key
+
+        create_enrollment_response = session.get(url, headers=headers)
+
+        return create_enrollment_response
+
     

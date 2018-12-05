@@ -176,7 +176,8 @@ def cli():
         "Create a new enrollment from a yaml or json input file "
         "(Use --file to specify the filename)",
         [{"name": "force","help": "No value"},
-         {"name": "edgekeyhost", "help": "edgekeyhost name you want to create"},
+         {"name": "edgekeyhost", "help": "edgekey host name you want to create"},
+         {"name": "job-id", "help": "check status of edgekey host name"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of Certificate to update"},
          {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}],
@@ -1323,10 +1324,13 @@ def createhost(args):
     """
 
     force = args.force
+    
     if not args.cn and not args.enrollment_id:
         root_logger.info(
-            'common name (--cn) or enrollment-id (--enrollment-id) is mandatory')
+            'common name (--cn) or enrollment-id (--enrollment-id)')
         exit(-1)
+    
+
     cn = args.cn
     groupId = args.group_id
 
@@ -1343,11 +1347,21 @@ def createhost(args):
         enrollmentId = enrollmentResult['enrollmentId']
         cn = enrollmentResult['cn']
         contractId = enrollmentResult['contractId']
+
+        if not (args.job_id is None):
+            checkJob(session, sps_object, contractId, groupId, args.job_id)
+            exit(0)
+
+        #create hostname
         response = sps_object.create_enrollment_hostname(session, contractId, groupId, enrollmentId, edgehost)
 
-        if response.status_code == 200:
+        if response.status_code == 200 or  response.status_code == 202:
             sps_json = response.json()
-        
+            spsId = sps_json["spsId"]
+
+            checkJob(session, sps_object, contractId, groupId, spsId)
+
+
         else:
             root_logger.info("{} Error creating Edgekey.net hostname".format(response.status_code))     
             contentType = response.headers['Content-Type']
@@ -1363,6 +1377,51 @@ def createhost(args):
         root_logger.info(
             'Enrollment not found. Please double check common name (CN) or enrollment id.')
         exit(0)
+
+def checkJob(session, sps_object, contractId, groupId, spsId):
+
+    spsJobResponse = sps_object.check_sps_job(session, contractId, groupId, spsId)
+
+    if spsJobResponse.status_code == 200:
+        root_logger.info("Success looking up Job Id: {} Response Code: {}".format(spsId, spsJobResponse.status_code)) 
+        spsJobJsonObj = spsJobResponse.json()
+        
+        spsJobJsonStr = json.dumps(spsJobJsonObj)
+        
+        if( len(spsJobJsonObj["requestList"] ) == 1):
+
+            requestListItem = spsJobJsonObj["requestList"][0]
+
+            spsId = requestListItem["spsId"]
+            lastStatusChange = requestListItem["lastStatusChange"]
+            workflowProgress = requestListItem["workflowProgress"]
+            parameters = requestListItem["parameters"]
+            edgehostResponse = None
+
+            for param in parameters:
+                
+                if "cnameHostname" == param["name"] :
+                    edgehostResponse = param["value"]
+
+            if edgehostResponse != None :        
+                root_logger.info("Job {} Hostname: {}.edgekey.net".format(spsId, edgehostResponse ) )
+                root_logger.info("Job {} Status: {}".format(spsId, workflowProgress ) )
+                root_logger.info("Job {} Last Update: {}".format( spsId, lastStatusChange))
+            
+            else:
+                root_logger.info("Job {} Status: {}".format(spsId, workflowProgress ) )
+                root_logger.info("Job {} Last Update: {}".format( spsId, lastStatusChange))
+            
+
+        else:
+            root_logger.info("Success looking up Job Id: {} Response Code: {} JSON:".format(spsId, spsJobResponse.status_code)) 
+            root_logger.info(spsJobJsonStr)
+            
+            
+
+    else:
+        root_logger.info("Error looking up Job Id: {} Response Code: {}".format(spsId, spsJobResponse.status_code)) 
+        
 
 def create(args):
     """
