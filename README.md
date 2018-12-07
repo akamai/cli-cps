@@ -44,6 +44,7 @@ Main program file that wraps this functionality in a command line utility:
 * [status](#status)
 * [audit](#audit)
 * [create](#create)
+* [create-dns](#create-dns)
 * [update](#update)
 * [cancel](#cancel)
 * [proceed](#proceed)
@@ -216,6 +217,28 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 --cert-file                  Signed certificate (PEM) file (for uploading third party certificates)
 --trust-file                 Trust-chain (PEM) file (for uploading third party certificates)
 ```
+
+### create-dns
+Create a new certificate enrollment.
+
+```bash
+%  akamai cps create-dns --cn sample.customer.com --group-id 78910
+%  akamai cps create-dns --enrollment-id 12345 --group-id 78910
+%  akamai cps create-dns --job-id 98765
+```
+
+The flags of interest are:
+
+```
+--cn <value>                 Common name (CN) of the enrollment
+--enrollment-id <value>  
+--edgekeyhost <override cn default>
+--group-id <required group id>
+--contract-id <contract-id>
+--job-id <value>
+
+```
+
 ### delete
 Remove a certificate and enrollment from the Akamai Network.  This will only delete the enrollment if the certificate has no pending changes
 

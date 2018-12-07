@@ -171,8 +171,8 @@ def cli():
          {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}],
         [{"name": "file", "help": "Input filename from templates folder to read enrollment details"}])
 
-    actions["createhost"] = create_sub_command(
-        subparsers, "createhost",
+    actions["create-dns"] = create_sub_command(
+        subparsers, "create-dns",
         "Create a new enrollment from a yaml or json input file "
         "(Use --file to specify the filename)",
         [{"name": "force","help": "No value"},
@@ -1309,10 +1309,10 @@ def audit(args):
             root_logger.info("Unable to find local cache. Please run 'setup' again")
             exit(0)
 
-def createhost(args):
+def create_dns(args):
 
     """
-    Method for handling createhost action. This method is responsible to createhost a new edge hostname given an enrollment/certificate.
+    Method for handling create_dns action. This method is responsible to create a new edge hostname when given an enrollment/certificate.
 
     Parameters
     -----------
