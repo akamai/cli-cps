@@ -219,7 +219,7 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 ```
 
 ### create-dns
-Create a new certificate enrollment.
+Create a new dns entry for an enrollment.
 
 ```bash
 %  akamai cps create-dns --cn sample.customer.com --group-id 78910
