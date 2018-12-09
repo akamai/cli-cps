@@ -230,12 +230,12 @@ Create a new certificate enrollment.
 The flags of interest are:
 
 ```
---cn <value>                 Common name (CN) of the enrollment
---enrollment-id <value>  
---edgekeyhost <override cn default>
---group-id <required group id>
---contract-id <contract-id>
---job-id <value>
+--cn <value>                            Common name (CN) of the enrollment
+--enrollment-id <value>                 Enrollment id
+--edgekeyhost <override cn default>     {edgekeyhost}.edgekey.net
+--group-id <required group id>          Group id
+--contract-id <contract-id>             Contract id
+--job-id <value>                        SPS Job id
 
 ```
 
