@@ -1837,18 +1837,15 @@ def retrieve_deployed(args):
             print(deployment_details.json()['certificate'])
         elif args.info:
 
-            certificate_details = certificate(deployment_details.json()['certificate'])
+            # Consistent print of JSON between retrieve_deployed & retrieve_enrollment
+            jsonResp = deployment_details.json()
 
-            print('\n')
-            print('Network      :   ' + network)
-            print('Common Name  :   ' + str(certificate_details.subject))
-            print('Not Before   :   ' + str(certificate_details.not_valid_before))
-            print('Expires      :   ' + str(certificate_details.expiration))
-            print('Issuer       :   ' + str(certificate_details.issuer))
-            if hasattr(certificate_details, 'sanList'):
-                print('SANs         :   ' + str(certificate_details.sanList) + '\n')
-            else:
-                print('SANs         :   \n')
+            # Add additional certificate details
+            certificate_details = certificate(deployment_details.json()['certificate'])
+            jsonResp["certificate_details"] = {'subject': certificate_details.subject, 'not_valid_before': certificate_details.subject, 'expiration': certificate_details.expiration, 'issuer':certificate_details.issuer}     
+
+            print(json.dumps(jsonResp, indent=4))
+
         else:
             root_logger.info('Either --info OR --cert is mandatory')
 
