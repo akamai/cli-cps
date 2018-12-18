@@ -37,7 +37,7 @@ import csv
 from headers import headers
 
 
-PACKAGE_VERSION = "0.1.0"
+PACKAGE_VERSION = "1.0.4"
 
 # Setup logging
 if not os.path.exists('logs'):
@@ -152,7 +152,8 @@ def cli():
          {"name": "network", "help": "Deployment detail of certificate in staging or production"},
          {"name": "leaf", "help": "Get leaf certificate in PEM format"},
          {"name": "chain", "help": "Get complete certificate in PEM format"},
-         {"name": "info", "help": "Get details of certificate in human readable format"}],
+         {"name": "info", "help": "Get details of certificate in human readable format"},
+         {"name": "json", "help": "Output format is json"}],
          None)
 
     actions["status"] = create_sub_command(
@@ -1324,16 +1325,16 @@ def create(args):
 
             #Validate number of contracts
             if len(contract_id_list) > 1  or len(contract_id_list) == 0 :
-            
+
                 if len(contract_id_list) == 0:
                     print('')
                     root_logger.info('No existing certificates on contract. Please specify --contract-id for this new enrollment')
-                    
-                
-                else: 
+
+
+                else:
                     print('')
                     root_logger.info('Multiple contracts exist, please specify --contract-id to use for new enrollment')
-                    
+
 
                 base_url, session = init_config(args.edgerc, args.section)
                 cps_object = cps(base_url,args.account_key)
@@ -1688,7 +1689,7 @@ def delete(args):
 
             # check the decision flag
             if decision == 'y' or decision == 'Y':
-                
+
                 root_logger.info(
                     'Deleting enrollment ID: ' + str(enrollmentId) + ' with CN: ' + cn )
                 delete_change_response = cps_object.delete_enrollment(
@@ -1702,7 +1703,7 @@ def delete(args):
                     root_logger.debug(
                         'Invalid API Response (' + str(delete_change_response.status_code) + '): Deletion unsuccessful')
                     exit(-1)
-                
+
             else:
                 print('')
                 root_logger.info('Exiting...')
@@ -1805,8 +1806,8 @@ def retrieve_deployed(args):
             'common Name (--cn) or enrollment-id (--enrollment-id) is mandatory')
         exit(-1)
 
-    if not args.leaf and not args.chain and not args.info:
-        root_logger.info('Please specify Either --leaf --chain or --info')
+    if not args.leaf and not args.chain and not args.info and not args.json:
+        root_logger.info('Please specify Either --leaf --chain or --info or --json')
         exit(-1)
 
     base_url, session = init_config(args.edgerc, args.section)
@@ -1829,6 +1830,7 @@ def retrieve_deployed(args):
         network = 'staging'
     root_logger.info('Fetching ' + network + ' certificate for enrollment ' + str(enrollmentId))
     deployment_details = cps_object.get_certificate(session, enrollmentId, network)
+    certificate_details = certificate(deployment_details.json()['certificate'])
     if deployment_details.status_code == 200:
         if args.chain:
             print(deployment_details.json()['certificate'])
@@ -1836,9 +1838,6 @@ def retrieve_deployed(args):
         elif args.leaf:
             print(deployment_details.json()['certificate'])
         elif args.info:
-
-            certificate_details = certificate(deployment_details.json()['certificate'])
-
             print('\n')
             print('Network      :   ' + network)
             print('Common Name  :   ' + str(certificate_details.subject))
@@ -1849,6 +1848,15 @@ def retrieve_deployed(args):
                 print('SANs         :   ' + str(certificate_details.sanList) + '\n')
             else:
                 print('SANs         :   \n')
+        elif args.json:
+            # Consistent print of JSON between retrieve_deployed & retrieve_enrollment
+            # and do not break backward compatibility
+            jsonResp = deployment_details.json()
+
+            # Add additional certificate details
+            jsonResp["certificate_details"] = {'subject': certificate_details.subject, 'not_valid_before': certificate_details.subject, 'expiration': certificate_details.expiration, 'issuer':certificate_details.issuer}
+
+            print(json.dumps(jsonResp, indent=4))
         else:
             root_logger.info('Either --info OR --cert is mandatory')
 
