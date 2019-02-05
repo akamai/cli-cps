@@ -72,8 +72,6 @@ def init_config(edgerc_file, section):
         root_logger.error("Unable to read edgerc file \"%s\"" % edgerc_file)
         exit(1)
 
-    #test
-
     if not section:
         if not os.getenv("AKAMAI_EDGERC_SECTION"):
             section = "cps"
@@ -85,6 +83,42 @@ def init_config(edgerc_file, section):
         base_url = edgerc.get(section, 'host')
 
         session = requests.Session()
+
+        if os.getenv("HTTPS_PROXY") and os.getenv("HTTP_PROXY"):
+            HTTPS_PROXY = os.getenv("HTTPS_PROXY")
+            HTTP_PROXY = os.getenv("HTTP_PROXY")
+
+            root_logger.error("Set HTTPS and HTTP Proxies: ({}, {})".format(HTTPS_PROXY, HTTP_PROXY))
+
+            proxies = {
+                'http': HTTP_PROXY,
+                'https': HTTPS_PROXY
+            }
+
+            session.proxies = proxies
+
+        elif os.getenv("HTTPS_PROXY"):
+
+            PROXY = os.getenv("HTTPS_PROXY")
+            root_logger.error("Set HTTPS Proxy: {}".format(PROXY))
+
+            proxies = {
+                'https': PROXY
+            }
+
+            session.proxies = proxies
+
+        elif os.getenv("HTTP_PROXY"):
+
+            PROXY = os.getenv("HTTP_PROXY")
+            root_logger.error("Set HTTP Proxy: {}".format(PROXY))
+
+            proxies = {
+                'http': PROXY
+            }
+
+            session.proxies = proxies
+
         session.auth = EdgeGridAuth.from_edgerc(edgerc, section)
 
         return base_url, session
