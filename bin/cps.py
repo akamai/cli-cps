@@ -72,6 +72,8 @@ def init_config(edgerc_file, section):
         root_logger.error("Unable to read edgerc file \"%s\"" % edgerc_file)
         exit(1)
 
+    #test
+
     if not section:
         if not os.getenv("AKAMAI_EDGERC_SECTION"):
             section = "cps"
