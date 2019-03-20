@@ -168,7 +168,8 @@ def cli():
         "Create a new enrollment from a yaml or json input file "
         "(Use --file to specify the filename)",
         [{"name": "force","help": "No value"},
-         {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"}],
+         {"name": "contract-id", "help": "Contract ID under which Enrollment/Certificate has to be created"},
+         {"name": "allow-duplicate-cn", "help": "Allows a new certificate to be created with the same CN as an existing certificate"}],
         [{"name": "file", "help": "Input filename from templates folder to read enrollment details"}])
 
     actions["update"] = create_sub_command(
@@ -261,7 +262,7 @@ def create_sub_command(
             del arg["name"]
             if name == 'force' or name == 'show-expiration' or name == 'json' \
             or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' or name == 'xlsx' \
-            or name == 'chain' or name == 'info':
+            or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -1304,6 +1305,7 @@ def create(args):
     """
     force = args.force
     fileName = args.file
+    allowDuplicateCn = args.allow_duplicate_cn
     filePath = os.path.join(fileName)
 
     try:
@@ -1402,7 +1404,7 @@ def create(args):
             cps_object = cps(base_url,args.account_key)
             # Send a request to create enrollment using wrapper function
             create_enrollmentResponse = cps_object.create_enrollment(
-                session, contractId, data=updateJsonContent)
+                session, contractId, data=updateJsonContent, allowDuplicateCn=allowDuplicateCn)
             if create_enrollmentResponse.status_code != 200 and create_enrollmentResponse.status_code != 202:
                 print('')
                 root_logger.info('FAILED to create certificate: ')
