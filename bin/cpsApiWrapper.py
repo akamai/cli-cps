@@ -48,7 +48,7 @@ class cps(object):
         contracts_response = session.get(contracts_url)
         return contracts_response
 
-    def create_enrollment(self, session, contractId, data):
+    def create_enrollment(self, session, contractId, data, allowDuplicateCn=False):
         """
         Function to Create an Enrollment
 
@@ -68,6 +68,8 @@ class cps(object):
         }
         create_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments?contractId=' + contractId
+        if allowDuplicateCn:
+            create_enrollment_url = create_enrollment_url + '&allow-duplicate-cn=true'
         if '?' in create_enrollment_url:
             create_enrollment_url = create_enrollment_url + self.account_switch_key
         else:

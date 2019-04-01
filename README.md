@@ -163,6 +163,7 @@ The flags of interest are:
 ```
 --file <value>                Input file in yaml or json format with the enrollment details.
 --force                       If specified, will not prompt for confirmation (optional)
+--allow-duplicate-cn          If specified, will allow a certificate to be created with the same CN as an existing certificate
 ```
 
 ### update
