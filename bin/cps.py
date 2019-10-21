@@ -276,14 +276,12 @@ def create_sub_command(
     optional.add_argument(
         "--edgerc",
         help="Location of the credentials file [$AKAMAI_EDGERC]",
-        default=os.path.join(
-            os.path.expanduser("~"),
-            '.edgerc'))
+        default="")
 
     optional.add_argument(
         "--section",
         help="Section of the credentials file [$AKAMAI_EDGERC_SECTION]",
-        default="cps")
+        default="")
 
     optional.add_argument(
         "--debug",
