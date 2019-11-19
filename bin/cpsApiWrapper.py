@@ -209,6 +209,36 @@ class cps(object):
         get_change_status_response = session.get(get_change_status_url, headers=headers)
         return get_change_status_response
 
+    def get_change_history(self, session, enrollmentId):
+        """
+        Function to Get details about changes made to an enrollment
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        get_change_historyRespose : get_change_historyRespose
+            (get_change_historyRespose) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.change-history.v3+json"
+        }
+        get_change_history_url = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + str(enrollmentId) + '/history/changes'
+
+        if '?' in get_change_history_url:
+            get_change_history_url = get_change_history_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            get_change_history_url = get_change_history_url + self.account_switch_key
+
+        get_change_history_response = session.get(get_change_history_url, headers=headers)
+        return get_change_history_response
+
     def cancel_change(self, session, enrollmentId, changeId):
         """
         Function to cancel a change

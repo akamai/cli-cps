@@ -201,7 +201,8 @@ def cli():
         [{"name": "output-file", "help": "Name of the outputfile to be saved to"},
          {"name": "json", "help": "Output format is json"},
          {"name": "xlsx", "help": "Output format is xlsx"},
-         {"name": "csv", "help": "Output format is csv"}])
+         {"name": "csv", "help": "Output format is csv"},
+         {"name": "pending-detail", "help": "Add additional details of pending certificates"}])
 
     actions["proceed"] = create_sub_command(
         subparsers, "proceed", "Proceed to deploy certificate",
@@ -262,7 +263,7 @@ def create_sub_command(
             del arg["name"]
             if name == 'force' or name == 'show-expiration' or name == 'json' \
             or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' or name == 'xlsx' \
-            or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn':
+            or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn' or name == 'pending-detail':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -1150,11 +1151,18 @@ def audit(args):
     final_json_array = []
 
     with open(output_file, 'w') as fileHandler:
-        fileHandler.write(
-            'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
-            Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
-            Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
-            SNI, Country, State, Organization, Organization Unit \n')
+        title_line = 'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
+        Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
+        Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
+        SNI, Country, State, Organization, Organization Unit'
+
+        if args.pending_detail:
+            title_line = title_line + ', Details'
+
+        #Add a newline character
+        title_line = title_line + '\n'
+        fileHandler.write(title_line)
+
     base_url, session = init_config(args.edgerc, args.section)
     cps_object = cps(base_url,args.account_key)
     for root, dirs, files in os.walk(enrollmentsPath):
@@ -1168,6 +1176,8 @@ def audit(args):
             enrollmentTotal = len(enrollments_json_content)
             count = 0
             for every_enrollment_info in enrollments_json_content:
+                #Set a default value for pending_detail
+                pending_detail = 'N/A'
                 count = count + 1
                 contract_id = every_enrollment_info['contractId']
                 enrollmentId = every_enrollment_info['enrollmentId']
@@ -1215,6 +1225,40 @@ def audit(args):
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
                         Status = 'IN-PROGRESS'
+                        if args.pending_detail:
+                            #Fetch additional details and populate the details column
+                            change_id = int(enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                            change_status_response = cps_object.get_change_status(session, enrollmentId, change_id)
+                            if change_status_response.status_code == 200:
+                                pending_detail = change_status_response.json()['statusInfo']['description']
+                                if enrollment_details_json['validationType'] == 'ov' or enrollment_details_json['validationType'] == 'ev':
+                                    #Fetch the OrderId and populate it
+                                    change_history_response = cps_object.get_change_history(session, enrollmentId)
+                                    for each_change in change_history_response.json()['changes']:
+                                        if 'status' in each_change:
+                                            if each_change['status'] == 'incomplete':
+                                                print(json.dumps(each_change, indent=4))
+                                                try:
+                                                    if 'primaryCertificateOrderDetails' in each_change:
+                                                        if 'geotrustOrderId' in each_change['primaryCertificateOrderDetails']:
+                                                            geotrustOrderId = each_change['primaryCertificateOrderDetails']['geotrustOrderId']
+                                                            pending_detail = pending_detail + ' with order ID: ' + str(geotrustOrderId)
+                                                        else:
+                                                            pass
+                                                    else:
+                                                        pass
+                                                except:
+                                                    root_logger.info('Unable to fetch details of Pending Change.')
+                                                    pass
+                                            else:
+                                                pass
+                                        else:
+                                            pass
+
+                            else:
+                                print('')
+                                root_logger.info('Unable to determine change status for enrollment ' + str(enrollmentId) + ' with change Id ' + str(change_id))
+
 
                     #root_logger.info(json.dumps(enrollment_details_json, indent=4))
                     if enrollment_details_json['networkConfiguration']['sni'] is not None:
@@ -1225,25 +1269,31 @@ def audit(args):
                     else:
                         sniInfo = ''
 
+                    output_content = contract_id + ',' + str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', ' \
+                      + expiration + ', ' + enrollment_details_json['validationType'] + ', ' \
+                      + enrollment_details_json['certificateType'] + ', ' \
+                      + changeManagement + ',' + adminName + ',' + \
+                      str(enrollment_details_json['adminContact']['email']) + ', ' \
+                      + str(enrollment_details_json['adminContact']['phone']) + ', ' + techName + ',' \
+                      + str(enrollment_details_json['techContact']['email']) + ', ' + \
+                      str(enrollment_details_json['techContact']['phone']) + ',' \
+                      + str(enrollment_details_json['networkConfiguration']['geography']) + ',' + \
+                      str(enrollment_details_json['networkConfiguration']['secureNetwork']) + ',' \
+                      + str(enrollment_details_json['networkConfiguration']['mustHaveCiphers']) + ',' + \
+                      str(enrollment_details_json['networkConfiguration']['preferredCiphers']) + ',' \
+                      + disallowedTlsVersions + \
+                      ',' + str(sniInfo) + ',' \
+                      + str(enrollment_details_json['csr']['c']) + ',' + str(enrollment_details_json['csr']['st']) + ',' \
+                      + str(enrollment_details_json['csr']['o']) + ',' + str(enrollment_details_json['csr']['ou'])
+
+                    if args.pending_detail:
+                        output_content = output_content + ',' + pending_detail
+
+                    #Add a newline character
+                    output_content = output_content + '\n'
+
                     with open(output_file, 'a') as fileHandler:
-                        fileHandler.write(contract_id + ',' + str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
-                                          + expiration + ', ' +
-                                          enrollment_details_json['validationType'] + ', ' +
-                                          enrollment_details_json['certificateType'] + ', '
-                                          + changeManagement + ',' + adminName + ',' +
-                                          str(enrollment_details_json['adminContact']['email']) + ', '
-                                          + str(enrollment_details_json['adminContact']['phone']) + ', ' + techName + ','
-                                          + str(enrollment_details_json['techContact']['email']) + ', ' +
-                                          str(enrollment_details_json['techContact']['phone']) + ','
-                                          + str(enrollment_details_json['networkConfiguration']['geography']) + ',' +
-                                          str(enrollment_details_json['networkConfiguration']['secureNetwork']) + ','
-                                          + str(enrollment_details_json['networkConfiguration']['mustHaveCiphers']) + ',' +
-                                          str(enrollment_details_json['networkConfiguration']['preferredCiphers']) + ','
-                                          + disallowedTlsVersions +
-                                          ',' + str(sniInfo) + ','
-                                          + str(enrollment_details_json['csr']['c']) + ',' + str(enrollment_details_json['csr']['st']) + ','
-                                          + str(enrollment_details_json['csr']['o']) + ',' + str(enrollment_details_json['csr']['ou']) + ','
-                                          + '\n')
+                        fileHandler.write(output_content)
                     #if json format is of interest
                     if args.json:
                         deployment_details = cps_object.get_certificate(session, enrollmentId)
@@ -1895,4 +1945,3 @@ def get_cache_dir():
         return os.getenv("AKAMAI_CLI_CACHE_DIR")
 
     return os.curdir
-
