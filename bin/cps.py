@@ -1151,7 +1151,7 @@ def audit(args):
 
     with open(output_file, 'w') as fileHandler:
         fileHandler.write(
-            'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
+            'Contract,Enrollment ID,Slot,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
             Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
             Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
             SNI, Country, State, Organization, Organization Unit \n')
@@ -1193,6 +1193,7 @@ def audit(args):
                     else:
                         root_logger.debug(
                             'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                    
                     sanCount = len(enrollment_details_json['csr']['sans'])
                     sanList = str(enrollment_details_json['csr']['sans']).replace(
                         ',', '').replace('[', '').replace(']', '')
@@ -1225,8 +1226,22 @@ def audit(args):
                     else:
                         sniInfo = ''
 
+                    certHistoryResponse = cps_object.get_certificate_history(
+                        session, enrollmentId)                    
+                    slot = ''
+                    if certHistoryResponse.status_code == 200:
+                        historyCount = len(certHistoryResponse.json()['certificates'])
+                        if historyCount > 0:
+                            slotCount = len(certHistoryResponse.json()['certificates'][0]['slots'])
+                            if slotCount > 0:
+                                slot = str(certHistoryResponse.json()['certificates'][0]['slots'][0])
+                                enrollment_json_info['slot'] = slot
+                    else:
+                        root_logger.debug(
+                            'Reason: ' + json.dumps(certHistoryResponse.json(), indent=4))
+
                     with open(output_file, 'a') as fileHandler:
-                        fileHandler.write(contract_id + ',' + str(enrollmentId) + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
+                        fileHandler.write(contract_id + ',' + str(enrollmentId) + ',' + slot + ', ' + enrollment_details_json['csr']['cn'] + ', ' + sanList + ', ' + Status + ', '
                                           + expiration + ', ' +
                                           enrollment_details_json['validationType'] + ', ' +
                                           enrollment_details_json['certificateType'] + ', '
@@ -1895,4 +1910,3 @@ def get_cache_dir():
         return os.getenv("AKAMAI_CLI_CACHE_DIR")
 
     return os.curdir
-

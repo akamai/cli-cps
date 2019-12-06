@@ -304,6 +304,37 @@ class cps(object):
         get_certificate_response = session.get(get_certificate_url, headers=headers)
         return get_certificate_response
 
+    def get_certificate_history(self, session, enrollmentId):
+        """
+        Function to Get a Certificate History
+
+        Parameters
+        -----------
+        session : <string>
+            An EdgeGrid Auth akamai session object
+
+        Returns
+        -------
+        get_certificate_history_response : get_certificate_history_response
+            (get_certificate_response) Object with all details
+        """
+        headers = {
+            "Accept": "application/vnd.akamai.cps.certificate-history.v1+json"
+        }
+        get_certificate_history_url = 'https://' + self.access_hostname + \
+            '/cps/v2/enrollments/' + \
+            str(enrollmentId) + '/history/certificates'
+
+        if '?' in get_certificate_history_url:
+            get_certificate_history_url = get_certificate_history_url + self.account_switch_key
+        else:
+            #Replace & with ? if there is no query string in URL
+            self.account_switch_key = self.account_switch_key.translate(self.account_switch_key.maketrans('&','?'))
+            get_certificate_history_url = get_certificate_history_url + self.account_switch_key
+
+        get_certificate_history_response = session.get(get_certificate_history_url, headers=headers)
+        return get_certificate_history_response
+
     def get_dv_change_info(self, session, endpoint):
         """
         Function to Get a Certificate
