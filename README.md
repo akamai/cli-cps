@@ -146,6 +146,7 @@ Use --include-change-details to include current pending certificate details.
 Here are the flags of interest:
 
 ```
+--include-change-details    will include details and Order ID of current pending certificates
 --csv                       csv format (optional: if not specificed, default is .csv)
 --json                      json format (optional: if not specificed, default is .csv)
 --xlsx                      xslx format (optional: if not specificed, default is .csv)
