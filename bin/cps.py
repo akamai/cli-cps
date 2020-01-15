@@ -263,7 +263,7 @@ def create_sub_command(
             del arg["name"]
             if name == 'force' or name == 'show-expiration' or name == 'json' \
             or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' or name == 'xlsx' \
-            or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn' or name == 'pending-detail':
+            or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn' or name == 'include-change-details':
                 optional.add_argument(
                     "--" + name,
                     required=False,
@@ -1226,7 +1226,7 @@ def audit(args):
                         Status = 'ACTIVE'
                     elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
                         Status = 'IN-PROGRESS'
-                        if args.pending_detail:
+                        if args.include_change_details:
                             #Fetch additional details and populate the details column
                             change_id = int(enrollment_details_json['pendingChanges'][0].split('/')[-1])
                             change_status_response = cps_object.get_change_status(session, enrollmentId, change_id)
@@ -1286,7 +1286,7 @@ def audit(args):
                       + str(enrollment_details_json['csr']['c']) + ',' + str(enrollment_details_json['csr']['st']) + ',' \
                       + str(enrollment_details_json['csr']['o']) + ',' + str(enrollment_details_json['csr']['ou'])
 
-                    if args.pending_detail:
+                    if args.include_change_details:
                         #Adding geotrustOrderId to all, as we have initialized to Not Applicable in general
                         output_content = output_content + ',' + pending_detail + ',' + geotrustOrderId
 
