@@ -202,7 +202,7 @@ def cli():
          {"name": "json", "help": "Output format is json"},
          {"name": "xlsx", "help": "Output format is xlsx"},
          {"name": "csv", "help": "Output format is csv"},
-         {"name": "pending-detail", "help": "Add additional details of pending certificates"}])
+         {"name": "include-change-details", "help": "Add additional details of pending certificates"}])
 
     actions["proceed"] = create_sub_command(
         subparsers, "proceed", "Proceed to deploy certificate",
@@ -1156,8 +1156,8 @@ def audit(args):
         Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
         SNI, Country, State, Organization, Organization Unit'
 
-        if args.pending_detail:
-            title_line = title_line + ', Details'
+        if args.include_change_details:
+            title_line = title_line + ', Change Status Details, Order ID'
 
         #Add a newline character
         title_line = title_line + '\n'
@@ -1177,7 +1177,8 @@ def audit(args):
             count = 0
             for every_enrollment_info in enrollments_json_content:
                 #Set a default value for pending_detail
-                pending_detail = 'N/A'
+                pending_detail = 'Not Applicable'
+                geotrustOrderId = 'Not Applicable'
                 count = count + 1
                 contract_id = every_enrollment_info['contractId']
                 enrollmentId = every_enrollment_info['enrollmentId']
@@ -1241,8 +1242,7 @@ def audit(args):
                                                 try:
                                                     if 'primaryCertificateOrderDetails' in each_change:
                                                         if 'geotrustOrderId' in each_change['primaryCertificateOrderDetails']:
-                                                            geotrustOrderId = each_change['primaryCertificateOrderDetails']['geotrustOrderId']
-                                                            pending_detail = pending_detail + ' with order ID: ' + str(geotrustOrderId)
+                                                            geotrustOrderId = str(each_change['primaryCertificateOrderDetails']['geotrustOrderId'])
                                                         else:
                                                             pass
                                                     else:
@@ -1287,7 +1287,8 @@ def audit(args):
                       + str(enrollment_details_json['csr']['o']) + ',' + str(enrollment_details_json['csr']['ou'])
 
                     if args.pending_detail:
-                        output_content = output_content + ',' + pending_detail
+                        #Adding geotrustOrderId to all, as we have initialized to Not Applicable in general
+                        output_content = output_content + ',' + pending_detail + ',' + geotrustOrderId
 
                     #Add a newline character
                     output_content = output_content + '\n'
