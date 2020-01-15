@@ -8,7 +8,7 @@ Provides a way to interact with the Akamai Certificate Provisioning System (CPS)
 ### Credentials
 In order to use this module, you need to:
 * Set up your credential files as described in the [authorization](https://developer.akamai.com/introduction/Prov_Creds.html) and [credentials](https://developer.akamai.com/introduction/Conf_Client.html) sections of the getting started guide on developer.akamai.com.  
-* When working through this process you need to give your API credential the "CPS" and "Contracts-API_Contracts" Grant.  The section in your configuration file should be called 'cps'. 
+* When working through this process you need to give your API credential the "CPS" and "Contracts-API_Contracts" Grant.  The section in your configuration file should be called 'cps'.
 * You may also use the --section <name> to use the specific section credentials from your .edgerc file
 
 ```
@@ -78,7 +78,7 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 ```
 --cn <value>                 Common name (CN) of the enrollment
---enrollment-id <value>      Enrollment id 
+--enrollment-id <value>      Enrollment id
 --json                       Output in json format (Optional: will be default if nothing specified)
 --yaml                       Output in yaml format (Optional)
 
@@ -98,7 +98,7 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 ```
 --cn <value>                 Common name (CN) of the enrollment
---enrollment-id <value>      Enrollment id 
+--enrollment-id <value>      Enrollment id
 --leaf                       Leaf certificate details
 --chain                      Full chain certificate details
 --info                       Summary information about deployed certificate
@@ -120,7 +120,7 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 ```
 --cn <value>                 Common name (CN) of the enrollment
---enrollment-id <value>      Enrollment id 
+--enrollment-id <value>      Enrollment id
 --validation-type            Specify either 'http' or 'dns' (for DV certificates)
 ```
 
@@ -131,13 +131,16 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 ### audit
 Generate an audit of all enrollments to a .xlsx, .csv, or .json file
-
+By default it generates report in csv format.
+Use --xlsx for xlsx Format
+Use --include-change-details to include current pending certificate details.
 ```bash
 %  akamai cps audit
 %  akamai cps audit --json
 %  akamai cps audit --csv
 %  akamai cps audit --xslx
 %  akamai cps audit --output-file sample.xlsx
+%  akamai cps audit --output-file sample.xlsx --include-change-details
 ```
 
 Here are the flags of interest:
@@ -145,8 +148,8 @@ Here are the flags of interest:
 ```
 --csv                       csv format (optional: if not specificed, default is .csv)
 --json                      json format (optional: if not specificed, default is .csv)
---xlsx                      xslx format (optional: if not specificed, default is .csv) 
---output-file <value>       Filename to be saved (optional: if not specifed, generated file will be put in audit folder). 
+--xlsx                      xslx format (optional: if not specificed, default is .csv)
+--output-file <value>       Filename to be saved (optional: if not specifed, generated file will be put in audit folder).
 ```
 
 
@@ -178,7 +181,7 @@ The flags of interest are (please specify either --cn or --enrollment-id):
 
 ```
 --cn <value>                 Common name (CN) of the enrollment
---enrollment-id <value>      Enrollment id 
+--enrollment-id <value>      Enrollment id
 --file <value>               Input file in yaml or json format with the enrollment details.
 --force                      If specified, will not prompt for confirmation (optional)
 ```
@@ -196,7 +199,7 @@ The flags of interest for cancel are (please specify either --cn or --enrollment
 
 ```
 --cn <value>                  Common name (CN) of the enrollment
---enrollment-id <value>       Enrollment id 
+--enrollment-id <value>       Enrollment id
 ```
 
 ### proceed
@@ -213,7 +216,7 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 
 ```
 --cn <value>                 Common name (CN) of the enrollment
---enrollment-id <value>      Enrollment id 
+--enrollment-id <value>      Enrollment id
 --cert-file                  Signed certificate (PEM) file (for uploading third party certificates)
 --trust-file                 Trust-chain (PEM) file (for uploading third party certificates)
 ```
@@ -229,5 +232,5 @@ The flags of interest for delete are (please specify either --cn or --enrollment
 
 ```
 --cn <value>                  Common name (CN) of the enrollment
---enrollment-id <value>       Enrollment id 
+--enrollment-id <value>       Enrollment id
 ```
