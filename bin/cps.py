@@ -37,7 +37,7 @@ import csv
 from headers import headers
 
 
-PACKAGE_VERSION = "1.0.5"
+PACKAGE_VERSION = "1.0.7"
 
 # Setup logging
 if not os.path.exists('logs'):
