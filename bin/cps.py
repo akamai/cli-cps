@@ -548,7 +548,7 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                             rowData.append(everyChallenge['token'])
                             rowData.append(everyDv['expires'])
                             table.add_row(rowData)
-                root_logger.info(table)
+                root_logger.info(table.get_string(sortby='Domain'))
 
                 root_logger.info('\nHTTP VALIDATION INFO:')
                 root_logger.info('For each domain in the table that has not been validated, configure a redirect as follows:\n')
@@ -570,14 +570,12 @@ def lets_encrypt_challenges(args,cps_object, session, change_status_response_jso
                             rowData.append(everyChallenge['responseBody'])
                             rowData.append(everyDv['expires'])
                             table.add_row(rowData)
-                print(table)
+                root_logger.info(table.get_string(sortby='Domain'))
 
-                print('')
-                print('DNS VALIDATION INFO:')
-                print('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS response body as follows:\n')
-                print('DNS Query: dig TXT _acme-challenge.<domain')
-                print('Expected Result: _acme-challenge.<domain> 7200 IN TXT <response body>')
-                print('')
+                root_logger.info('\nDNS VALIDATION INFO:')
+                root_logger.info('For each domain in the table that has not been validated, configure a DNS TXT record using the specified DNS response body as follows:\n')
+                root_logger.info('DNS Query: dig TXT _acme-challenge.<domain>')
+                root_logger.info('Expected Result: _acme-challenge.<domain> 7200 IN TXT <response body>\n')
 
 
     # Display generic state/status/description CPS information for help for verifying status
