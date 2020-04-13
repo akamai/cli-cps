@@ -37,7 +37,7 @@ import csv
 from headers import headers
 
 
-PACKAGE_VERSION = "1.0.7"
+PACKAGE_VERSION = "1.0.8"
 
 # Setup logging
 if not os.path.exists('logs'):
@@ -1459,8 +1459,11 @@ def create(args):
                 root_logger.info('FAILED to create certificate: ')
                 root_logger.info('Response Code is: ' +
                                  str(create_enrollmentResponse.status_code))
-                root_logger.info(json.dumps(
-                    create_enrollmentResponse.json(), indent=4))
+                try:
+                    #Taking care of a corner case of json() not being populated in response object:  CPSREQUEST-390
+                    root_logger.info(json.dumps(create_enrollmentResponse.json(), indent=4))
+                except:
+                    root_logger.info(create_enrollmentResponse.text)
             else:
                 root_logger.info('Successfully created Enrollment...')
                 print('')
