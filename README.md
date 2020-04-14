@@ -62,7 +62,10 @@ List all current enrollments in Akamai CPS
 
 ```bash
 %  akamai cps list
+%  akamai cps list --show-expiration
 ```
+
+(--show-expiration takes a little longer as fetches production expiration date)
 
 ### retrieve-enrollment
 Get specific details for an enrollment and outputs the details in raw json or yaml format. Please specify either --cn or --enrollment-id
