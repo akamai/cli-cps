@@ -1,8 +1,8 @@
-edgegrid-python==1.1.1
-requests==2.23.0
+edgegrid-python==1.2.1
+requests==2.27.1
 prettytable==0.7.2
-cryptography==3.2
-pyyaml==5.3.1
+cryptography==3.3.2
+pyyaml==5.4
 xlsxwriter==1.2.8
-urllib3==1.25.*
+urllib3==1.26.5
 chardet==3.0.4

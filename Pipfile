@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+edgegrid-python = "==1.2.1"
+requests = "==2.27.1"
+prettytable = "==0.7.2"
+cryptography = "==3.3.2"
+urllib3 = "==1.26.5"
+chardet = "==3.0.4"
+PyYAML = "==5.4"
+XlsxWriter = "==1.2.8"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
