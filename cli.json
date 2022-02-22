@@ -6,7 +6,7 @@
     {
       "name": "cps",
       "aliases": ["certs"],
-      "version": "1.0.8",
+      "version": "1.0.9",
       "description": "Access Certificate Provisioning System (CPS) Information"
     }
   ]
