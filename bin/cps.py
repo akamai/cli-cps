@@ -18,26 +18,25 @@ In case you need quick explanation contact the initiators.
 Initiators: vbhat@akamai.com, aetsai@akamai.com, mkilmer@akamai.com
 """
 
-import json
-import datetime
-from cpsApiWrapper import cps
-from cpsApiWrapper import certificate
 import argparse
 import configparser
-import requests
-import os
+import csv
+import datetime
+import json
 import logging
-import shutil
+import os
+import requests
 import sys
 import yaml
-from prettytable import PrettyTable
 from akamai.edgegrid import EdgeGridAuth, EdgeRc
+from prettytable import PrettyTable
 from xlsxwriter.workbook import Workbook
-import csv
+
+from cpsApiWrapper import certificate
+from cpsApiWrapper import cps
 from headers import headers
 
-
-PACKAGE_VERSION = "1.0.8"
+PACKAGE_VERSION = "1.0.9"
 
 # Setup logging
 if not os.path.exists('logs'):
