@@ -292,6 +292,7 @@ def create_sub_command(
 
     optional.add_argument(
         "--account-key",
+        "--accountkey",
         help="Account Switch Key",
         default="")
 
