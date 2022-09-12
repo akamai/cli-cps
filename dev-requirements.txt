@@ -1,0 +1,11 @@
+edgegrid-python==1.2.1
+requests==2.27.1
+prettytable==0.7.2
+cryptography==37.0.2
+pyyaml==5.4
+xlsxwriter==1.2.8
+urllib3==1.26.5
+chardet==3.0.4
+pytest==7.1.3
+pytest-cov==3.0.0
+requests_mock==1.9.3
