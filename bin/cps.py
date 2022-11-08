@@ -208,6 +208,7 @@ def cli():
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
          {"name": "cert-file", "help": "Signed leaf certificate (Mandatory only in case of third party cert upload)"},
          {"name": "trust-file", "help": "Signed certificate of CA (Mandatory only in case of third party cert upload)"},
+         {"name": "key-type", "help": "Either RSA or ECDSA (Mandatory only in case of third party cert upload)"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
@@ -629,11 +630,17 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
 
         elif args.command == 'proceed':
             # for now --cert-file and --trust-file arguments are mandatory
+            if not args.key_type:
+                root_logger.info('--key-type RSA or ECDSA is mandatory for thirdParty certificate type')
+                exit(-1)
+            if args.key_type.upper() != 'rsa'.upper() and args.key_type.upper() != 'ecdsa'.upper():
+                root_logger.info('Please enter valid values for --key-type (either RSA or ECDSA)')
+                exit(-1)
             if not args.cert_file:
-                root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
+                root_logger.info('--cert-file is mandatory for thirdParty certificate type')
                 exit(-1)
             if not args.trust_file:
-                root_logger.info('--trust-file is mandatory for thirdParty cartificate type')
+                root_logger.info('--trust-file is mandatory for thirdParty certificate type')
                 exit(-1)
 
             try:
@@ -645,12 +652,19 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
                 root_logger.info(e)
                 exit(-1)
 
-            cert_object = certificate(certificate_content)
             cert_and_trust = {}
+            cert_and_trust['keyAlgorithm'] = args.key_type.upper()
             cert_and_trust['certificate'] = certificate_content
             cert_and_trust['trustChain'] = trust_content
 
-            certificate_content_str = json.dumps(cert_and_trust)
+            csr_array = []
+            csr_array.append(cert_and_trust)
+            
+            upload_csr_final = {}
+            upload_csr_final['certificatesAndTrustChains'] = csr_array
+
+            certificate_content_str = json.dumps(upload_csr_final)
+
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
             root_logger.info('Trying to upload 3rd party certificate information...')

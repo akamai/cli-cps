@@ -59,7 +59,7 @@ class headers(object):
                 },
                 "update" : {
                   "Accept" : "application/vnd.akamai.cps.change-id.v1+json",
-                  "Content-Type" : "application/vnd.akamai.cps.certificate-and-trust-chain.v1+json"
+                  "Content-Type" : "application/vnd.akamai.cps.certificate-and-trust-chain.v2+json"
                 }
             }
           }
