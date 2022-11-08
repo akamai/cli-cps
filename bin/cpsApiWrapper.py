@@ -63,7 +63,7 @@ class cps(object):
             (create_enrollmentRespose) Object with all details
         """
         headers = {
-            "Content-Type": "application/vnd.akamai.cps.enrollment.v4+json",
+            "Content-Type": "application/vnd.akamai.cps.enrollment.v11+json",
             "Accept": "application/vnd.akamai.cps.enrollment-status.v1+json"
         }
         create_enrollment_url = 'https://' + self.access_hostname + \
