@@ -1649,7 +1649,7 @@ def cancel(args):
             # check the decision flag
             if decision == 'y' or decision == 'Y':
                 changeId = int(
-                    enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                    enrollment_details_json['pendingChanges'][0]['location'].split('/')[-1])
                 change_status_response = cps_object.get_change_status(
                     session, enrollmentId, changeId)
                 #root_logger.info(json.dumps(change_status_response.json(), indent=4))
