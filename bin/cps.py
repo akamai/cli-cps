@@ -892,7 +892,7 @@ def get_status(session, cps_object, enrollmentId, cn):
         JSON object containing change or current status information
     """
     # first, get the enrollment
-    print('')
+    #root_logger.info('')
     root_logger.info('Getting enrollment for ' + cn +
                      ' with enrollment-id: ' + str(enrollmentId))
 
@@ -906,7 +906,7 @@ def get_status(session, cps_object, enrollmentId, cn):
         # if there is a pendingChanges object in the response, there is something to do
         elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
             changeId = int(
-                enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                enrollment_details_json['pendingChanges'][0]['location'].split('/')[-1])
             root_logger.info('Getting change status for changeId: ' + str(changeId))
             # second you have to get the pending change array, and then call get change status with the change id
             change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
