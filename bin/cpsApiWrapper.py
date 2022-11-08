@@ -163,7 +163,7 @@ class cps(object):
             (get_enrollmentRespose) Object with all details
         """
         headers = {
-            "Accept": "application/vnd.akamai.cps.enrollment.v4+json"
+            "Accept": "application/vnd.akamai.cps.enrollment.v11+json"
         }
         get_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId)
