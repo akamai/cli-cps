@@ -617,11 +617,15 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             headers = get_headers('third-party-csr', action='info')
             changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
 
+            numCsrs = len(changeInfoResponse.json()['csrs'])
+            if numCsrs > 0:
+                for every_csr in changeInfoResponse.json()['csrs']:
 
-            root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.')
-            root_logger.info('')
-            print(str(changeInfoResponse.json()['csr']))
-            root_logger.info('')
+                    keyAlgorithm = every_csr['keyAlgorithm']
+                    root_logger.info('Below is the CSR for ' + str(keyAlgorithm) + '. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.')
+                    root_logger.info('')
+                    print(str(every_csr['csr']))
+                    root_logger.info('')
 
         elif args.command == 'proceed':
             # for now --cert-file and --trust-file arguments are mandatory

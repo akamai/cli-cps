@@ -55,7 +55,7 @@ class headers(object):
             },
             "third-party-csr" : {
                 "info" : {
-                  "Accept" : "application/vnd.akamai.cps.csr.v1+json"
+                  "Accept" : "application/vnd.akamai.cps.csr.v2+json"
                 },
                 "update" : {
                   "Accept" : "application/vnd.akamai.cps.change-id.v1+json",
