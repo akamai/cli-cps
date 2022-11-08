@@ -1169,7 +1169,7 @@ def audit(args):
         title_line = 'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
         Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
         Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
-        SNI, Country, State, Organization, Organization Unit'
+        SNI Only, Country, State, Organization, Organization Unit'
 
         if args.include_change_details:
             title_line = title_line + ', Change Status Details, Order ID'
@@ -1243,7 +1243,7 @@ def audit(args):
                         Status = 'IN-PROGRESS'
                         if args.include_change_details:
                             #Fetch additional details and populate the details column
-                            change_id = int(enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                            change_id = int(enrollment_details_json['pendingChanges'][0]['location'].split('/')[-1])
                             change_status_response = cps_object.get_change_status(session, enrollmentId, change_id)
                             if change_status_response.status_code == 200:
                                 pending_detail = change_status_response.json()['statusInfo']['description']
@@ -1276,11 +1276,8 @@ def audit(args):
 
 
                     #root_logger.info(json.dumps(enrollment_details_json, indent=4))
-                    if enrollment_details_json['networkConfiguration']['sni'] is not None:
-                        sniInfo = ''
-                        for everySan in enrollment_details_json['networkConfiguration']['sni']['dnsNames']:
-                            sniInfo = sniInfo + ' ' + everySan
-                        sniInfo = '"' + sniInfo + '"'
+                    if enrollment_details_json['networkConfiguration']['sniOnly'] is not None:
+                        sniInfo = enrollment_details_json['networkConfiguration']['sniOnly']
                     else:
                         sniInfo = ''
 
