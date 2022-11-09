@@ -179,6 +179,7 @@ Update a specified enrollment.  Depending on the type of change, this may or may
 ```bash
 %  akamai cps update --cn test.edgekey.net --file sample.yml
 %  akamai cps update --cn test.edgekey.net --file sample.json --force
+%  akamai cps update --cn test.edgekey.net --file sample.json --force-renewal
 ```
 
 The flags of interest are (please specify either --cn or --enrollment-id):
@@ -188,6 +189,7 @@ The flags of interest are (please specify either --cn or --enrollment-id):
 --enrollment-id <value>      Enrollment id
 --file <value>               Input file in yaml or json format with the enrollment details.
 --force                      If specified, will not prompt for confirmation (optional)
+--force-renewal              If specified, force certificate renewal for enrollment (optional)
 ```
 
 
@@ -212,8 +214,8 @@ If there is a pending change that requires user input, proceed accordingly
 ```bash
 %  akamai cps proceed --cn sample.customer.com
 %  akamai cps proceed --enrollment-id 12345
-%  akamai cps proceed --enrollment-id 12345 --cert-file signed.csr --trust-file ca.crt (use if third party certificate and ready to upload signed csr)
-%  akamai cps proceed --cn sample.customer.com --cert-file signed.csr --trust-file ca.crt (use if third party certifcate and ready to upload signed csr)
+%  akamai cps proceed --enrollment-id 12345 --cert-file signed.csr --trust-file ca.crt --key-type rsa (use if third party certificate and ready to upload signed csr)
+%  akamai cps proceed --cn sample.customer.com --cert-file signed.csr --trust-file ca.crt --key-type ecdsa (use if third party certifcate and ready to upload signed csr)
 ```
 
 Here are the flags of interest (please specify either --cn or --enrollment-id):
@@ -223,6 +225,7 @@ Here are the flags of interest (please specify either --cn or --enrollment-id):
 --enrollment-id <value>      Enrollment id
 --cert-file                  Signed certificate (PEM) file (for uploading third party certificates)
 --trust-file                 Trust-chain (PEM) file (for uploading third party certificates)
+--key-type                   RSA or ECDSA (for uploading third party certificates)
 ```
 ### delete
 Remove a certificate and enrollment from the Akamai Network.  This will only delete the enrollment if the certificate has no pending changes
