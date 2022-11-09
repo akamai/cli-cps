@@ -177,9 +177,9 @@ def cli():
         "(Use --file to specify the filename",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of Certificate to update"}],
-        [{"name": "file",
-          "help": "Input filename from templates folder to read enrollment details"}])
+         {"name": "cn", "help": "Common Name of Certificate to update"},
+         {"name": "file","help": "Input filename from templates folder to read enrollment details"},
+         {"name": "force-renewal","help": "force certificate renewal for enrollment"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an existing change",
@@ -261,7 +261,7 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            if name == 'force' or name == 'show-expiration' or name == 'json' \
+            if name == 'force' or name == 'force-renewal' or name == 'show-expiration' or name == 'json' \
             or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' or name == 'xlsx' \
             or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn' or name == 'include-change-details':
                 optional.add_argument(
@@ -1519,6 +1519,7 @@ def update(args):
     None
     """
     force = args.force
+    forceRenewal=args.force_renewal
     fileName = args.file
     if not args.cn and not args.enrollment_id:
         root_logger.info(
@@ -1591,7 +1592,7 @@ def update(args):
         root_logger.info('Trying to update enrollment...')
         print('')
         update_enrollmentResponse = cps_object.update_enrollment(
-            session, enrollmentId, data=updateJsonContent)
+            session, enrollmentId, data=updateJsonContent, forceRenewal=forceRenewal)
         if update_enrollmentResponse.status_code == 200:
             root_logger.info('Update successful. This change does not require a new certificate deployment' +
                              ' and will take effect on the next deployment. \nRun \'status\' to get updated progress details.')
