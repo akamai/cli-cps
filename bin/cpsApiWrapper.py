@@ -81,7 +81,7 @@ class cps(object):
             create_enrollment_url, data=data, headers=headers)
         return create_enrollment_response
 
-    def update_enrollment(self, session, enrollmentId, data):
+    def update_enrollment(self, session, enrollmentId, data, forceRenewal=False):
         """
         Function to Create an Enrollment
 
@@ -101,6 +101,9 @@ class cps(object):
         }
         update_enrollment_url = 'https://' + self.access_hostname + \
             '/cps/v2/enrollments/' + str(enrollmentId) + '?allow-cancel-pending-changes=true'
+
+        if forceRenewal:
+            update_enrollment_url = update_enrollment_url + '&force-renewal=true'
 
         if '?' in update_enrollment_url:
             update_enrollment_url = update_enrollment_url + self.account_switch_key
