@@ -1479,7 +1479,8 @@ def create(args):
                 except:
                     root_logger.info(create_enrollmentResponse.text)
             else:
-                root_logger.info('Successfully created Enrollment...')
+                create_enrollment_id = create_enrollmentResponse.json()['enrollment'].split('/')[-1]
+                root_logger.info('Successfully created enrollment: ' + create_enrollment_id)
                 print('')
                 root_logger.info('Refreshing local cache...')
                 setup(args, invoker='create')
