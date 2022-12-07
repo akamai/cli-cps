@@ -302,6 +302,7 @@ def create_sub_command(
 def check_enrollment_id(args):
     """
     Utility function that returns a sample enrollment object for later processing
+    It refreshes the local cache file if enrollment not found the first time and retries the check.
 
     Parameters
     -----------
@@ -312,6 +313,29 @@ def check_enrollment_id(args):
     -------
     enrollmentResult : local object that stores if enrollment was found and enrollmentId
     """
+
+    enrollmentResult = check_enrollment_id_in_cache(args)
+    if enrollmentResult['found'] is False:
+        setup(args, invoker="check_enrollment_id")
+        enrollmentResult = check_enrollment_id_in_cache(args)
+
+    return enrollmentResult
+
+
+def check_enrollment_id_in_cache(args):
+    """
+    Utility function that returns a sample enrollment object for later processing
+
+    Parameters
+    -----------
+    args : <string>
+        Should be called with --cn or --enrollment-id arguments
+
+    Returns
+    -------
+    enrollmentResult : local object that stores if enrollment was found and enrollmentId
+    """
+    enrollments_json_content = []
     enrollmentsPath = os.path.join('setup')
     for root, dirs, files in os.walk(enrollmentsPath):
         local_enrollments_file = 'enrollments.json'
