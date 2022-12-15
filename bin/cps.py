@@ -72,7 +72,7 @@ def init_config(edgerc_file, section):
 
     if not section:
         if not os.getenv("AKAMAI_EDGERC_SECTION"):
-            section = "cps"
+            section = "default"
         else:
             section = os.getenv("AKAMAI_EDGERC_SECTION")
 
@@ -283,7 +283,7 @@ def create_sub_command(
     optional.add_argument(
         "--section",
         help="Section of the credentials file [$AKAMAI_EDGERC_SECTION]",
-        default="cps")
+        default="default")
 
     optional.add_argument(
         "--debug",
