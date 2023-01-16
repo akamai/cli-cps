@@ -44,21 +44,21 @@ class TestCPS:
 
         assert resp.status_code == 200
         assert resp.request.url == "https://www.example.com/cps/v2/enrollments?contractId=test_contract"
-        assert resp.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v4+json"
+        assert resp.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v11+json"
         assert resp.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment-status.v1+json"
 
         assert resp_with_allow_duplicate_cn.status_code == 200
         assert resp_with_allow_duplicate_cn.request.url == "https://www.example.com/cps/v2/enrollments?contractId" \
                                                            "=test_contract&allow-duplicate-cn=true"
         assert resp_with_allow_duplicate_cn.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment" \
-                                                                               ".v4+json"
+                                                                               ".v11+json"
         assert resp_with_allow_duplicate_cn.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment" \
                                                                          "-status.v1+json"
 
         assert resp_with_switch_key.status_code == 200
         assert resp_with_switch_key.request.url == "https://www.example.com/cps/v2/enrollments?contractId" \
                                                    "=test_contract&allow-duplicate-cn=true&accountSwitchKey=key"
-        assert resp_with_switch_key.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v4+json"
+        assert resp_with_switch_key.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v11+json"
         assert resp_with_switch_key.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment-status.v1+json"
 
     @pytest.mark.parametrize("session", [("PUT", "https://www.example.com/cps/v2/enrollments/test_enrollment", 200)],
@@ -70,13 +70,13 @@ class TestCPS:
         assert resp.status_code == 200
         assert resp.request.url == "https://www.example.com/cps/v2/enrollments/test_enrollment?allow-cancel-pending" \
                                    "-changes=true"
-        assert resp.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v4+json"
+        assert resp.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v11+json"
         assert resp.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment-status.v1+json"
 
         assert resp_with_switch_key.status_code == 200
         assert resp_with_switch_key.request.url == "https://www.example.com/cps/v2/enrollments/test_enrollment?allow" \
                                                    "-cancel-pending-changes=true&accountSwitchKey=key"
-        assert resp_with_switch_key.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v4+json"
+        assert resp_with_switch_key.request.headers["Content-Type"] == "application/vnd.akamai.cps.enrollment.v11+json"
         assert resp_with_switch_key.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment-status.v1+json"
 
     @pytest.mark.parametrize("session", [("GET", "https://www.example.com/cps/v2/enrollments", 200)], indirect=True)
@@ -87,16 +87,16 @@ class TestCPS:
 
         assert resp.status_code == 200
         assert resp.request.url == "https://www.example.com/cps/v2/enrollments?contractId=test_contract"
-        assert resp.request.headers["Accept"] == "application/vnd.akamai.cps.enrollments.v4+json"
+        assert resp.request.headers["Accept"] == "application/vnd.akamai.cps.enrollments.v11+json"
 
         assert resp_with_optional.status_code == 200
         assert resp_with_optional.request.url == "https://www.example.com/cps/v2/enrollments"
-        assert resp_with_optional.request.headers["Accept"] == "application/vnd.akamai.cps.enrollments.v4+json"
+        assert resp_with_optional.request.headers["Accept"] == "application/vnd.akamai.cps.enrollments.v11+json"
 
         assert resp_with_switch_key.status_code == 200
         assert resp_with_switch_key.request.url == "https://www.example.com/cps/v2/enrollments?contractId" \
                                                    "=test_contract&accountSwitchKey=key"
-        assert resp_with_switch_key.request.headers["Accept"] == "application/vnd.akamai.cps.enrollments.v4+json"
+        assert resp_with_switch_key.request.headers["Accept"] == "application/vnd.akamai.cps.enrollments.v11+json"
 
     @pytest.mark.parametrize("session", [("GET", "https://www.example.com/cps/v2/enrollments/test_enrollment", 200)],
                              indirect=True)
@@ -105,7 +105,7 @@ class TestCPS:
 
         assert resp.status_code == 200
         assert resp.request.url == "https://www.example.com/cps/v2/enrollments/test_enrollment"
-        assert resp.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment.v4+json"
+        assert resp.request.headers["Accept"] == "application/vnd.akamai.cps.enrollment.v11+json"
 
     @pytest.mark.parametrize("session", [("GET", "https://www.example.com/cps/v2/enrollments/test_enrollment/changes"
                                                  "/test_change", 200)], indirect=True)
