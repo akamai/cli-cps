@@ -36,7 +36,7 @@ from cpsApiWrapper import certificate
 from cpsApiWrapper import cps
 from headers import headers
 
-PACKAGE_VERSION = "1.0.9"
+PACKAGE_VERSION = "1.1.0"
 
 # Setup logging
 if not os.path.exists('logs'):
@@ -177,9 +177,9 @@ def cli():
         "(Use --file to specify the filename",
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
-         {"name": "cn", "help": "Common Name of Certificate to update"}],
-        [{"name": "file",
-          "help": "Input filename from templates folder to read enrollment details"}])
+         {"name": "cn", "help": "Common Name of Certificate to update"},
+         {"name": "file","help": "Input filename from templates folder to read enrollment details"},
+         {"name": "force-renewal","help": "force certificate renewal for enrollment"}])
 
     actions["cancel"] = create_sub_command(
         subparsers, "cancel", "Cancel an existing change",
@@ -208,6 +208,7 @@ def cli():
         [{"name": "force", "help": "Skip the stdout display and user confirmation"},
          {"name": "cert-file", "help": "Signed leaf certificate (Mandatory only in case of third party cert upload)"},
          {"name": "trust-file", "help": "Signed certificate of CA (Mandatory only in case of third party cert upload)"},
+         {"name": "key-type", "help": "Either RSA or ECDSA (Mandatory only in case of third party cert upload)"},
          {"name": "enrollment-id", "help": "enrollment-id of the enrollment"},
          {"name": "cn", "help": "Common Name of certificate"}],
         None)
@@ -260,7 +261,7 @@ def create_sub_command(
         for arg in optional_arguments:
             name = arg["name"]
             del arg["name"]
-            if name == 'force' or name == 'show-expiration' or name == 'json' \
+            if name == 'force' or name == 'force-renewal' or name == 'show-expiration' or name == 'json' \
             or name == 'yaml' or name == 'yml' or name == 'leaf' or name == 'csv' or name == 'xlsx' \
             or name == 'chain' or name == 'info' or name == 'allow-duplicate-cn' or name == 'include-change-details':
                 optional.add_argument(
@@ -617,19 +618,29 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
             headers = get_headers('third-party-csr', action='info')
             changeInfoResponse = cps_object.custom_get_call(session, headers, endpoint=info_endpoint)
 
+            numCsrs = len(changeInfoResponse.json()['csrs'])
+            if numCsrs > 0:
+                for every_csr in changeInfoResponse.json()['csrs']:
 
-            root_logger.info('Below is the CSR. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.')
-            root_logger.info('')
-            print(str(changeInfoResponse.json()['csr']))
-            root_logger.info('')
+                    keyAlgorithm = every_csr['keyAlgorithm']
+                    root_logger.info('Below is the CSR for ' + str(keyAlgorithm) + '. Please get it signed by your desired certificate authority and then run \'proceed\' to upload.')
+                    root_logger.info('')
+                    print(str(every_csr['csr']))
+                    root_logger.info('')
 
         elif args.command == 'proceed':
             # for now --cert-file and --trust-file arguments are mandatory
+            if not args.key_type:
+                root_logger.info('--key-type RSA or ECDSA is mandatory for thirdParty certificate type')
+                exit(-1)
+            if args.key_type.upper() != 'rsa'.upper() and args.key_type.upper() != 'ecdsa'.upper():
+                root_logger.info('Please enter valid values for --key-type (either RSA or ECDSA)')
+                exit(-1)
             if not args.cert_file:
-                root_logger.info('--cert-file is mandatory for thirdParty cartificate type')
+                root_logger.info('--cert-file is mandatory for thirdParty certificate type')
                 exit(-1)
             if not args.trust_file:
-                root_logger.info('--trust-file is mandatory for thirdParty cartificate type')
+                root_logger.info('--trust-file is mandatory for thirdParty certificate type')
                 exit(-1)
 
             try:
@@ -641,12 +652,19 @@ def third_party_challenges(args,cps_object, session, change_status_response_json
                 root_logger.info(e)
                 exit(-1)
 
-            cert_object = certificate(certificate_content)
             cert_and_trust = {}
+            cert_and_trust['keyAlgorithm'] = args.key_type.upper()
             cert_and_trust['certificate'] = certificate_content
             cert_and_trust['trustChain'] = trust_content
 
-            certificate_content_str = json.dumps(cert_and_trust)
+            csr_array = []
+            csr_array.append(cert_and_trust)
+            
+            upload_csr_final = {}
+            upload_csr_final['certificatesAndTrustChains'] = csr_array
+
+            certificate_content_str = json.dumps(upload_csr_final)
+
             update_endpoint = allowed_inputdata['update']
             headers = get_headers("third-party-csr", "update")
             root_logger.info('Trying to upload 3rd party certificate information...')
@@ -867,7 +885,7 @@ def get_status(session, cps_object, enrollmentId, cn):
         JSON object containing change or current status information
     """
     # first, get the enrollment
-    print('')
+    #root_logger.info('')
     root_logger.info('Getting enrollment for ' + cn +
                      ' with enrollment-id: ' + str(enrollmentId))
 
@@ -881,7 +899,7 @@ def get_status(session, cps_object, enrollmentId, cn):
         # if there is a pendingChanges object in the response, there is something to do
         elif 'pendingChanges' in enrollment_details_json and len(enrollment_details_json['pendingChanges']) > 0:
             changeId = int(
-                enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                enrollment_details_json['pendingChanges'][0]['location'].split('/')[-1])
             root_logger.info('Getting change status for changeId: ' + str(changeId))
             # second you have to get the pending change array, and then call get change status with the change id
             change_status_response = cps_object.get_change_status(session, enrollmentId, changeId)
@@ -1151,7 +1169,7 @@ def audit(args):
         title_line = 'Contract,Enrollment ID,Common Name (CN),SAN(S),Status,Expiration (In Production),Validation,Type,\
         Test on Staging,Admin Name, Admin Email, Admin Phone, Tech Name, Tech Email, Tech Phone, \
         Geography, Secure Network, Must-Have Ciphers, Preferred Ciphers, Disallowed TLS Versions, \
-        SNI, Country, State, Organization, Organization Unit'
+        SNI Only, Country, State, Organization, Organization Unit'
 
         if args.include_change_details:
             title_line = title_line + ', Change Status Details, Order ID'
@@ -1225,7 +1243,7 @@ def audit(args):
                         Status = 'IN-PROGRESS'
                         if args.include_change_details:
                             #Fetch additional details and populate the details column
-                            change_id = int(enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                            change_id = int(enrollment_details_json['pendingChanges'][0]['location'].split('/')[-1])
                             change_status_response = cps_object.get_change_status(session, enrollmentId, change_id)
                             if change_status_response.status_code == 200:
                                 pending_detail = change_status_response.json()['statusInfo']['description']
@@ -1258,11 +1276,8 @@ def audit(args):
 
 
                     #root_logger.info(json.dumps(enrollment_details_json, indent=4))
-                    if enrollment_details_json['networkConfiguration']['sni'] is not None:
-                        sniInfo = ''
-                        for everySan in enrollment_details_json['networkConfiguration']['sni']['dnsNames']:
-                            sniInfo = sniInfo + ' ' + everySan
-                        sniInfo = '"' + sniInfo + '"'
+                    if enrollment_details_json['networkConfiguration']['sniOnly'] is not None:
+                        sniInfo = enrollment_details_json['networkConfiguration']['sniOnly']
                     else:
                         sniInfo = ''
 
@@ -1464,7 +1479,8 @@ def create(args):
                 except:
                     root_logger.info(create_enrollmentResponse.text)
             else:
-                root_logger.info('Successfully created Enrollment...')
+                create_enrollment_id = create_enrollmentResponse.json()['enrollment'].split('/')[-1]
+                root_logger.info('Successfully created enrollment: ' + create_enrollment_id)
                 print('')
                 root_logger.info('Refreshing local cache...')
                 setup(args, invoker='create')
@@ -1504,6 +1520,7 @@ def update(args):
     None
     """
     force = args.force
+    forceRenewal=args.force_renewal
     fileName = args.file
     if not args.cn and not args.enrollment_id:
         root_logger.info(
@@ -1576,7 +1593,7 @@ def update(args):
         root_logger.info('Trying to update enrollment...')
         print('')
         update_enrollmentResponse = cps_object.update_enrollment(
-            session, enrollmentId, data=updateJsonContent)
+            session, enrollmentId, data=updateJsonContent, forceRenewal=forceRenewal)
         if update_enrollmentResponse.status_code == 200:
             root_logger.info('Update successful. This change does not require a new certificate deployment' +
                              ' and will take effect on the next deployment. \nRun \'status\' to get updated progress details.')
@@ -1649,7 +1666,7 @@ def cancel(args):
             # check the decision flag
             if decision == 'y' or decision == 'Y':
                 changeId = int(
-                    enrollment_details_json['pendingChanges'][0].split('/')[-1])
+                    enrollment_details_json['pendingChanges'][0]['location'].split('/')[-1])
                 change_status_response = cps_object.get_change_status(
                     session, enrollmentId, changeId)
                 #root_logger.info(json.dumps(change_status_response.json(), indent=4))
