@@ -36,7 +36,7 @@ from cpsApiWrapper import certificate
 from cpsApiWrapper import cps
 from headers import headers
 
-PACKAGE_VERSION = "1.1.0"
+PACKAGE_VERSION = "2.0.0"
 
 # Setup logging
 if not os.path.exists('logs'):
@@ -72,7 +72,7 @@ def init_config(edgerc_file, section):
 
     if not section:
         if not os.getenv("AKAMAI_EDGERC_SECTION"):
-            section = "cps"
+            section = "default"
         else:
             section = os.getenv("AKAMAI_EDGERC_SECTION")
 
@@ -284,7 +284,7 @@ def create_sub_command(
     optional.add_argument(
         "--section",
         help="Section of the credentials file [$AKAMAI_EDGERC_SECTION]",
-        default="cps")
+        default="default")
 
     optional.add_argument(
         "--debug",
@@ -293,6 +293,7 @@ def create_sub_command(
 
     optional.add_argument(
         "--account-key",
+        "--accountkey",
         help="Account Switch Key",
         default="")
 
@@ -300,6 +301,29 @@ def create_sub_command(
 
 
 def check_enrollment_id(args):
+    """
+    Utility function that returns a sample enrollment object for later processing
+    It refreshes the local cache file if enrollment not found the first time and retries the check.
+
+    Parameters
+    -----------
+    args : <string>
+        Should be called with --cn or --enrollment-id arguments
+
+    Returns
+    -------
+    enrollmentResult : local object that stores if enrollment was found and enrollmentId
+    """
+
+    enrollmentResult = check_enrollment_id_in_cache(args)
+    if enrollmentResult['found'] is False:
+        setup(args, invoker="check_enrollment_id")
+        enrollmentResult = check_enrollment_id_in_cache(args)
+
+    return enrollmentResult
+
+
+def check_enrollment_id_in_cache(args):
     """
     Utility function that returns a sample enrollment object for later processing
 
@@ -312,6 +336,7 @@ def check_enrollment_id(args):
     -------
     enrollmentResult : local object that stores if enrollment was found and enrollmentId
     """
+    enrollments_json_content = []
     enrollmentsPath = os.path.join('setup')
     for root, dirs, files in os.walk(enrollmentsPath):
         local_enrollments_file = 'enrollments.json'
@@ -1439,9 +1464,9 @@ def create(args):
             exit(0)
 
         if filePath.endswith('.yml') or filePath.endswith('.yaml'):
-            jsonFormattedContent = yaml.load(file_content)
-            updateJsonContent = json.dumps(yaml.load(file_content), indent=2)
-            certificateContent = yaml.load(file_content)
+            jsonFormattedContent = yaml.load(file_content, yaml.Loader)
+            updateJsonContent = json.dumps(yaml.load(file_content, yaml.Loader), indent=2)
+            certificateContent = yaml.load(file_content, yaml.Loader)
         elif filePath.endswith('.json'):
             jsonFormattedContent = json.loads(file_content)
             updateJsonContent = json.dumps(jsonFormattedContent, indent=2)
@@ -1547,10 +1572,10 @@ def update(args):
         exit(0)
 
     if fileName.endswith('.yml') or fileName.endswith('.yaml'):
-        jsonFormattedContent = yaml.load(file_content)
+        jsonFormattedContent = yaml.load(file_content, yaml.Loader)
         updateJsonContent = json.dumps(
-            yaml.load(file_content), indent=2)
-        certificateContent = yaml.load(file_content)
+            yaml.load(file_content, yaml.Loader), indent=2)
+        certificateContent = yaml.load(file_content, yaml.Loader)
     elif fileName.endswith('.json'):
         jsonFormattedContent = json.loads(file_content)
         updateJsonContent = json.dumps(jsonFormattedContent, indent=2)
