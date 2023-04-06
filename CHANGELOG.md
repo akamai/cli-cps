@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## X.X.X (Month DD, YYYY)
+
+#### FEATURES/ENHANCEMENTS:
+
+* Update cryptography version from 37.0.2 to 39.0.1
+
 ## 2.0.0 (January 18, 2023)
 
 #### BREAKING CHANGES:
