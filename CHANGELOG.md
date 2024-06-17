@@ -4,6 +4,8 @@
 
 #### FEATURES/ENHANCEMENTS:
 
+* Update various dependencies
+
 * Update cryptography version from 37.0.2 to 39.0.1
 
 ## 2.0.0 (January 18, 2023)
