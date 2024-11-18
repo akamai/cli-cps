@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## X.X.X (X X, X)
+
+#### FEATURES/ENHANCEMENTS:
+
+* Modified code to use `yaml.SafeLoader` to improve security when loading `yaml` configuration files.
+
 ## 2.0.1 (June 18, 2024)
 
 #### FEATURES/ENHANCEMENTS:

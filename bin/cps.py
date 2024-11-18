@@ -1464,9 +1464,9 @@ def create(args):
             exit(0)
 
         if filePath.endswith('.yml') or filePath.endswith('.yaml'):
-            jsonFormattedContent = yaml.load(file_content, yaml.Loader)
-            updateJsonContent = json.dumps(yaml.load(file_content, yaml.Loader), indent=2)
-            certificateContent = yaml.load(file_content, yaml.Loader)
+            jsonFormattedContent = yaml.load(file_content, yaml.SafeLoader)
+            updateJsonContent = json.dumps(yaml.load(file_content, yaml.SafeLoader), indent=2)
+            certificateContent = yaml.load(file_content, yaml.SafeLoader)
         elif filePath.endswith('.json'):
             jsonFormattedContent = json.loads(file_content)
             updateJsonContent = json.dumps(jsonFormattedContent, indent=2)
@@ -1572,10 +1572,10 @@ def update(args):
         exit(0)
 
     if fileName.endswith('.yml') or fileName.endswith('.yaml'):
-        jsonFormattedContent = yaml.load(file_content, yaml.Loader)
+        jsonFormattedContent = yaml.load(file_content, yaml.SafeLoader)
         updateJsonContent = json.dumps(
-            yaml.load(file_content, yaml.Loader), indent=2)
-        certificateContent = yaml.load(file_content, yaml.Loader)
+            yaml.load(file_content, yaml.SafeLoader), indent=2)
+        certificateContent = yaml.load(file_content, yaml.SafeLoader)
     elif fileName.endswith('.json'):
         jsonFormattedContent = json.loads(file_content)
         updateJsonContent = json.dumps(jsonFormattedContent, indent=2)
