@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## X.X.X (X X, X)
+
+### FEATURES/ENHANCEMENTS:
+
+* Unified exit codes to return `1` in all erroneous situations and corrected error messages.
+
 ## 2.0.2 (Dec 10, 2024)
 
 ### FEATURES/ENHANCEMENTS:
