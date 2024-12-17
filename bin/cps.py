@@ -426,8 +426,7 @@ def setup(args, invoker='default'):
         root_logger.error(json.dumps(contractIds.json(), indent=4))
         sys.exit(error_msg)
 
-
-# Looping through each contract to get enrollments for each contract
+    # Looping through each contract to get enrollments for each contract
     for contractId in contracts_json_content:
         if invoker == 'default':
             print('')
@@ -1032,10 +1031,10 @@ def status(args):
             elif changeType == 'third-party-certificate':
                 third_party_challenges(args, cps_object, session, change_status_response_json, sel_inputdata)
             elif changeType == 'change-management':
-                change_management(args, cps_object, session, change_status_response_json, sel_inputdata, \
+                change_management(args, cps_object, session, change_status_response_json, sel_inputdata,
                                   validation_type)
             elif changeType == 'post-verification-warnings-acknowledgement':
-                post_verification(args, cps_object, session, change_status_response_json, \
+                post_verification(args, cps_object, session, change_status_response_json,
                                   sel_inputdata)
             else:
                 print('')
@@ -1064,7 +1063,6 @@ def status(args):
         error_msg = f'Invalid API Response ({change_status_response.status_code}): Unable to determine change status details. Please try again or contact an Akamai representative.'
         root_logger.error(error_msg)
         sys.exit(error_msg)
-
 
 
 def proceed(args):
@@ -1158,9 +1156,8 @@ def list(args):
                             rowData.append('No')
 
                 if args.show_expiration:
-                    # if showing expiriation date, need to get it from the certificate itself
-                    certResponse = cps_object.get_certificate(
-                        session, enrollmentId)
+                    # if showing expiration date, need to get it from the certificate itself
+                    certResponse = cps_object.get_certificate(session, enrollmentId)
                     expiration = ''
                     if certResponse.status_code == 200:
                         certificate_details = certificate(certResponse.json()['certificate'])
@@ -1178,9 +1175,9 @@ def list(args):
             error_msg = f"Invalid API Response ({enrollments_response.status_code}): Could not list enrollments. Please ensure you have run 'setup' to populate the local enrollments.json file."
             root_logger.error(error_msg)
             sys.exit(error_msg)
-    except FileNotFoundError:
+    except FileNotFoundError as not_found:
         print('')
-        error_msg = f'Filename: \"{fileName}\" is not found in templates folder. Exiting...'
+        error_msg = f'Filename: \"{not_found.filename}\" is not found in templates folder. Exiting...'
         root_logger.error(error_msg)
         print('')
         sys.exit(error_msg)
@@ -1496,7 +1493,7 @@ def create(args):
             sys.exit(error_msg)
 
 
-if filePath.endswith('.yml') or filePath.endswith('.yaml'):
+        if filePath.endswith('.yml') or filePath.endswith('.yaml'):
             jsonFormattedContent = yaml.load(file_content, yaml.SafeLoader)
             updateJsonContent = json.dumps(yaml.load(file_content, yaml.SafeLoader), indent=2)
             certificateContent = yaml.load(file_content, yaml.SafeLoader)
