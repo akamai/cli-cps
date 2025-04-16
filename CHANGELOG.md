@@ -1,5 +1,12 @@
 # RELEASE NOTES
 
+## 2.0.3 (Apr 16, 2025)
+
+### FEATURES/ENHANCEMENTS:
+
+* Unified exit codes to return `1` in all erroneous situations and corrected error messages.
+* Updated various dependencies.
+
 ## 2.0.2 (Dec 10, 2024)
 
 ### FEATURES/ENHANCEMENTS:
