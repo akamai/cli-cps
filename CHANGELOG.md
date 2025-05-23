@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-## 2.0.4 (May 22, 2025)
+## 2.0.4 (May 23, 2025)
 
 ### FEATURES/ENHANCEMENTS:
 
