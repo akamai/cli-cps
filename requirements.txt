@@ -4,5 +4,5 @@ prettytable==3.10.0
 cryptography==44.0.2
 pyyaml==6.0.1
 xlsxwriter==3.2.0
-urllib3==2.4.0
+urllib3==2.5.0
 chardet==5.2.0
