@@ -22,7 +22,7 @@ from cpsApiWrapper import certificate
 from cpsApiWrapper import cps
 from headers import headers
 
-PACKAGE_VERSION = "2.0.5"
+PACKAGE_VERSION = "2.0.6"
 
 # Setup logging
 if not os.path.exists('logs'):
