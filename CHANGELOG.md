@@ -1,5 +1,15 @@
 # RELEASE NOTES
 
+## 2.0.7 (Feb 3, 2026)
+
+### FEATURES/ENHANCEMENTS:
+
+* Updated various dependencies.
+
+### BUG FIXES:
+
+* Fixed an issue where the CPS CLI crashed with a `JSONDecodeError` when the API returned an empty response body.
+
 ## 2.0.6 (Dec 18, 2025)
 
 ### FEATURES/ENHANCEMENTS:
