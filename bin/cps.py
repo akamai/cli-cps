@@ -22,7 +22,7 @@ from cpsApiWrapper import certificate
 from cpsApiWrapper import cps
 from headers import headers
 
-PACKAGE_VERSION = "2.0.6"
+PACKAGE_VERSION = "2.0.7"
 
 # Setup logging
 if not os.path.exists('logs'):
@@ -1163,8 +1163,14 @@ def list(args):
                         certificate_details = certificate(certResponse.json()['certificate'])
                         expiration = certificate_details.expiration
                     else:
-                        root_logger.debug(
-                            'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                        if certResponse.content:  # Check if response has body
+                            try:
+                                error_detail = json.dumps(certResponse.json(), indent=4)
+                            except json.JSONDecodeError:
+                                error_detail = certResponse.text.strip() or "Non-JSON response body"
+                        else:
+                            error_detail = f"Empty response body (status: {certResponse.status_code})"
+                        root_logger.debug(f'Reason: {error_detail}')
                     rowData.append(expiration)
                 table.add_row(rowData)
             print(table)
@@ -1264,8 +1270,14 @@ def audit(args):
                         certificate_details = certificate(certResponse.json()['certificate'])
                         expiration = certificate_details.expiration
                     else:
-                        root_logger.debug(
-                            'Reason: ' + json.dumps(certResponse.json(), indent=4))
+                        if certResponse.content:  # Check if response has body
+                            try:
+                                error_detail = json.dumps(certResponse.json(), indent=4)
+                            except json.JSONDecodeError:
+                                error_detail = certResponse.text.strip() or "Non-JSON response body"
+                        else:
+                            error_detail = f"Empty response body (status: {certResponse.status_code})"
+                        root_logger.debug(f'Reason: {error_detail}')
                     sanCount = len(enrollment_details_json['csr']['sans'])
                     sanList = str(enrollment_details_json['csr']['sans']).replace(
                         ',', '').replace('[', '').replace(']', '')
