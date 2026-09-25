@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-## 2.0.11 (Sep 24, 2026)
+## 2.0.11 (Sep 25, 2026)
 
 ### FEATURES/ENHANCEMENTS:
 
